@@ -1,5 +1,17 @@
-# pytorch_stanford_dogs
+# pytorch
 
-## models
-modelsにある構築済みモデルは'num_classes'を引数に入れるように修正する
--> preact_resnetは修正済み
+## start.py
+dataloaderの作成
+モデルの定義
+学習ループ
+可視化
+tensorboardとの連携あり
+
+## hypara_tensorboard.py
+ハイパーパラメータ探索用
+
+## tensorboard_image_export.py
+tensorboardのログファイルから画像を取り出す
+
+## dataset.py
+データ処理関係
