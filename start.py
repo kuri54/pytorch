@@ -1,8 +1,4 @@
 # %%
-# import sys
-# print(sys.path)
-# sys.path.append('/work/pytorch/model')
-
 import os
 import time
 import copy
