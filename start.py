@@ -79,7 +79,7 @@ class_names = image_datasets['train'].classes
 
 print(dataset_sizes)
 print(class_names)
-len(dataloaders['train'].dataset)
+len(dataloaders['valid'].dataset)
 
 # %%
 # GPU使用設定
@@ -256,8 +256,8 @@ def train_binary_model_metrics(model, criterion, optimizer, scheduler, num_epoch
                     print("saving model epoch :{}".format(epoch))
 
             # 評価項目 (loss, accracy, recall, precision, f1-score)
-            epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_acc = running_corrects.double() / dataset_sizes[phase]
+            epoch_loss = running_loss / len(dataloaders[phase].dataset)
+            epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
             metrics_dict = classification_report(y_true=labels.cpu(), y_pred=preds.cpu(), output_dict=True)
                         
@@ -335,31 +335,32 @@ def train_multiple_model_metrics(model, criterion, optimizer, scheduler, num_epo
 
             running_loss = 0.0
             running_corrects = 0
-
+        
+            labels_all = []
+            pred_all = []
+            
             for idx, (inputs, labels) in enumerate(dataloaders[phase]):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
                 optimizer.zero_grad()
-
+                
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = model(inputs)
                     axis = 1
                     _, preds = torch.max(outputs, axis)
                     loss = criterion(outputs, labels) 
                     
+                    pred_all.extend(predict.item() for predict in preds)
+                    labels_all.extend(label.item() for label in labels)
+                                                            
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
-                        
+                                        
                 # 学習の評価＆統計
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
-            
-                # confusion_matrixを描く
-                # dataloaderバッチのインデックスを設定しておかないと端数でエラーが出る
-                if idx == 2:
-                    plot_image_array = plot_confusion_matrix(labels.cpu(), preds.cpu(), class_names)
             
             if phase == 'train':
                 scheduler.step()
@@ -368,23 +369,22 @@ def train_multiple_model_metrics(model, criterion, optimizer, scheduler, num_epo
                     print('saving model epoch :{}'.format(epoch))
                     
             # 評価項目 (loss, accracy, recall, precision, f1-score)
-            epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_acc = running_corrects.double() / dataset_sizes[phase]
+            epoch_loss = running_loss / len(dataloaders[phase].dataset)
+            epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
             
             metrics_dict = classification_report(y_true=labels.cpu(), y_pred=preds.cpu(), output_dict=True)
 
             epoch_recall = metrics_dict['macro avg']['recall']
             epoch_precision = metrics_dict['macro avg']['precision']
             epoch_f1 = metrics_dict['macro avg']['f1-score']
-            end_epoch = len(range(num_epochs))
+
+            plot_image_array = plot_confusion_matrix(labels_all, pred_all, class_names)
             
             writer.add_scalar('Loss/{}'.format(phase), epoch_loss, epoch)
             writer.add_scalar('Accuracy/{}'.format(phase), epoch_acc, epoch)
             writer.add_scalar('Recall/{}'.format(phase), epoch_recall, epoch)
             writer.add_scalar('Precision/{}'.format(phase), epoch_precision, epoch)
             writer.add_scalar('F1-score/{}'.format(phase), epoch_f1, epoch)
-
-            # Confusion Matrixは最終epochのもののみを保存
             writer.add_image('Confusion Matrix/{}'.format(phase), plot_image_array, end_epoch)
 
             print('{} Loss: {:.4f} Acc: {:.4f} Recall: {:.4f} Precision: {:.4f} F1-score: {:.4f}'.format(
@@ -508,3 +508,13 @@ visualize_model(model_conv)
 
 # %%
 # 学習
+
+
+a = tensor([3, 1, 3, 3, 1, 1, 2, 1, 3, 3, 1, 3, 3, 4, 0, 4, 2, 4, 0, 4, 1, 2, 0, 3,
+        4, 0, 3, 0, 4, 1, 1, 4])
+b = tensor([3, 1, 3, 3, 1, 1, 2, 1, 3, 1, 1, 3, 3, 4, 1, 4, 2, 4, 0, 4, 1, 2, 0, 3,
+        4, 0, 3, 0, 4, 1, 1, 4])
+
+a = [1, 2, 1, 4, 4, 0, 1, 4, 3, 0, 3, 3, 3, 1, 0, 4, 3, 3, 3, 3, 0, 1, 0, 4, 2, 3, 1, 1, 0, 4, 3, 1, 4, 4, 1, 1, 1, 2, 4, 4, 2, 4, 2, 2, 0, 2, 1, 3, 1, 3, 4, 1, 2, 0, 0, 1, 0, 4, 1, 3, 1, 4, 4, 0, 0, 1, 4, 3, 3, 4, 4, 1, 0, 3, 2, 1, 2, 3, 0, 1, 2, 0, 1, 0, 4, 4, 3, 0, 0, 4, 2, 3, 0, 0, 3, 2, 4, 0, 4, 3, 4, 2, 4, 0, 4, 2, 4, 3, 2, 3, 0, 1, 4, 4, 3, 4, 0, 0, 1, 0, 4, 0, 0, 3, 2, 0, 4, 0, 1, 0, 3, 1, 1, 4, 2, 1, 2, 3, 3, 3, 2, 2, 0, 4, 4, 4, 3, 4, 2, 3, 2, 2, 0, 3, 3, 2, 4, 3, 0, 1, 4, 1, 1, 3, 4, 3, 4, 0, 0, 1, 1, 3, 3, 1, 0, 3, 4, 3, 4, 2, 0, 2, 2, 4, 1, 3, 2, 3, 1, 4, 2, 3, 1, 4, 4, 0, 1, 3, 4, 0, 4, 3, 0, 2, 2, 0, 2, 4, 4, 1, 0, 1, 3, 2, 3, 4, 0, 0, 0, 4, 4, 4, 1, 4, 4, 1, 3, 3, 0, 4, 2, 2, 4, 4, 0, 4, 4, 3, 4, 3, 2, 4, 4, 3, 4, 3, 4, 4, 4, 2, 3, 1, 2, 0, 4, 2, 3, 0, 0, 2, 4, 4, 3, 1, 1, 0, 2, 4, 3, 1, 4, 0, 2, 2, 4, 1, 2, 0, 0, 2, 3, 1, 2, 1, 2, 4, 2, 4, 2, 4, 0, 4, 3, 4, 4, 3, 4, 3, 2, 1, 3, 3, 3, 4, 2, 2, 0, 4, 2, 4, 3, 0, 2, 0, 4, 2, 0, 1, 2, 0, 3, 3, 4, 0, 3, 1, 1, 1, 3, 0, 2, 3, 1, 4, 4, 4, 1, 0, 1, 3, 2, 4, 0, 4, 2, 4, 0, 3, 0, 4, 2, 4, 1, 3, 2, 3, 3, 4, 0, 1, 0, 4, 3, 1, 2, 3, 1, 3, 0, 0, 2, 4, 1, 1, 2, 0, 0, 4, 1, 1, 1, 3, 3, 3, 2, 2, 3, 3, 4, 2, 3, 4, 1, 1, 3, 3, 2, 3, 0, 0, 3, 1, 4, 0, 2, 4, 1, 1, 2, 2, 2, 0, 4, 3, 3, 4, 3, 2, 1, 3, 4, 2, 4, 3, 1, 4, 1, 3, 4, 2, 1, 0, 3, 0, 4, 2, 4, 2, 1, 1, 2, 4, 3, 2, 3, 2, 1, 1, 3, 2, 0, 2, 1, 3, 2, 3, 3, 4, 2, 2, 3, 1, 3, 1, 3, 3, 4, 0, 4, 4, 4, 0, 0, 4, 4, 4, 4, 1, 3, 1, 4, 4, 4, 0, 0, 2, 1, 3, 3, 4, 4, 0, 4, 4, 2, 4, 3, 4, 1, 3, 2, 2, 4, 4, 3, 1, 4, 1, 0, 3, 4, 2, 3, 1, 2, 3, 3, 0, 0, 2, 2, 3, 0, 2, 0, 0, 4, 2, 3, 0, 1, 4, 3, 4, 0, 1, 3, 1, 1, 2, 3, 2, 3, 1, 0, 1, 1, 4, 3, 3, 1, 2, 3, 1, 1, 0, 2, 0, 4, 0, 2, 4, 2, 2, 4, 0, 3, 4, 3, 3, 1, 3, 4, 3, 2, 0, 3, 1, 2, 3, 0, 0, 4, 2, 1, 2, 2, 3, 3, 3, 3, 4, 1, 4, 4, 3, 1, 4, 3, 4, 2, 1, 1, 3, 0, 4, 3, 0, 0, 0, 3]
+
+len(a)

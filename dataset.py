@@ -103,7 +103,7 @@ def plot_confusion_matrix(labels, preds, class_names):
     plt.rcParams['figure.subplot.bottom'] = 0.2
     cm = confusion_matrix(y_true=labels, y_pred=preds)
     cm = pd.DataFrame(data=cm, index=class_names, columns=class_names)
-    sns.heatmap(cm, annot=True, cmap='Blues', square=True)
+    sns.heatmap(cm, annot=True, cmap='Blues', square=True, fmt='d')
     plt.ylim(0, cm.shape[0])
     plt.xlabel('Prediction')
     plt.ylabel('Label (Ground Truth)')
