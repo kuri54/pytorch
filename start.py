@@ -79,6 +79,7 @@ class_names = image_datasets['train'].classes
 
 print(dataset_sizes)
 print(class_names)
+len(dataloaders['train'].dataset)
 
 # %%
 # GPU使用設定
@@ -212,7 +213,7 @@ def train_binary_model_metrics(model, criterion, optimizer, scheduler, num_epoch
     save_day = '{}_{}{}_{}-{}'.format(d.year, d.month, d.day, d.hour, d.minute)
     since = time.time()
 
-    best_model_wts = copy.deepcopy(model_ft.state_dict())
+    best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
     best_precision = 0.0
 
@@ -222,9 +223,9 @@ def train_binary_model_metrics(model, criterion, optimizer, scheduler, num_epoch
 
         for phase in ['train', 'valid']:
             if phase == 'train':
-                model_ft.train()
+                model.train()
             else:
-                model_ft.eval()
+                model.eval()
 
             running_loss = 0.0
             running_corrects = 0
@@ -236,7 +237,7 @@ def train_binary_model_metrics(model, criterion, optimizer, scheduler, num_epoch
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model_ft(inputs)
+                    outputs = model(inputs)
                     axis = 1
                     _, preds = torch.max(outputs, axis)
                     loss = criterion(outputs, labels) 
@@ -251,7 +252,7 @@ def train_binary_model_metrics(model, criterion, optimizer, scheduler, num_epoch
             if phase == 'train':
                 scheduler.step()
                 if epoch%10 == 0:
-                    torch.save(model_ft.state_dict(), os.path.join(save_model_dir, save_model_name+'_{}_{}.pkl'.format(epoch, save_day)))
+                    torch.save(model.state_dict(), os.path.join(save_model_dir, save_model_name+'_{}_{}.pkl'.format(epoch, save_day)))
                     print("saving model epoch :{}".format(epoch))
 
             # 評価項目 (loss, accracy, recall, precision, f1-score)
@@ -286,13 +287,13 @@ def train_binary_model_metrics(model, criterion, optimizer, scheduler, num_epoch
             # deep copy the model
             if phase == 'valid' and epoch_acc > best_acc:
                 if epoch_recall==1 and epoch_precision > best_precision:
-                    torch.save(model_ft.state_dict(), 
+                    torch.save(model.state_dict(), 
                                os.path.join(save_model_dir, save_model_name+'_{}_{}_recall_1.0.pkl'.format(epoch, save_day)))
                     print('saving model recall=1.0 epoch :{}'.format(epoch))
                     recall_1_precision = epoch_precision
                 best_precision = epoch_precision
                 best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model_ft.state_dict())
+                best_model_wts = copy.deepcopy(model.state_dict())
         print()
 
     time_elapsed = time.time() - since
@@ -302,7 +303,7 @@ def train_binary_model_metrics(model, criterion, optimizer, scheduler, num_epoch
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    torch.save(model_ft.state_dict(), 
+    torch.save(model.state_dict(), 
                os.path.join(save_model_dir, save_model_name+'_{}_{}_best.pkl'.format(epoch, save_day)))
     writer.close()
 
@@ -318,7 +319,7 @@ def train_multiple_model_metrics(model, criterion, optimizer, scheduler, num_epo
     save_day = '{}_{}{}_{}-{}'.format(d.year, d.month, d.day, d.hour, d.minute)
     since = time.time()
 
-    best_model_wts = copy.deepcopy(model_ft.state_dict())
+    best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
     best_precision = 0.0
 
@@ -328,9 +329,9 @@ def train_multiple_model_metrics(model, criterion, optimizer, scheduler, num_epo
 
         for phase in ['train', 'valid']:
             if phase == 'train':
-                model_ft.train()
+                model.train()
             else:
-                model_ft.eval()
+                model.eval()
 
             running_loss = 0.0
             running_corrects = 0
@@ -342,7 +343,7 @@ def train_multiple_model_metrics(model, criterion, optimizer, scheduler, num_epo
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model_ft(inputs)
+                    outputs = model(inputs)
                     axis = 1
                     _, preds = torch.max(outputs, axis)
                     loss = criterion(outputs, labels) 
@@ -354,7 +355,7 @@ def train_multiple_model_metrics(model, criterion, optimizer, scheduler, num_epo
                 # 学習の評価＆統計
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
-                
+            
                 # confusion_matrixを描く
                 # dataloaderバッチのインデックスを設定しておかないと端数でエラーが出る
                 if idx == 2:
@@ -363,7 +364,7 @@ def train_multiple_model_metrics(model, criterion, optimizer, scheduler, num_epo
             if phase == 'train':
                 scheduler.step()
                 if epoch%10 == 0:
-                    torch.save(model_ft.state_dict(), os.path.join(save_model_dir, save_model_name+'_{}_{}.pkl'.format(epoch, save_day)))
+                    torch.save(model.state_dict(), os.path.join(save_model_dir, save_model_name+'_{}_{}.pkl'.format(epoch, save_day)))
                     print('saving model epoch :{}'.format(epoch))
                     
             # 評価項目 (loss, accracy, recall, precision, f1-score)
@@ -392,13 +393,14 @@ def train_multiple_model_metrics(model, criterion, optimizer, scheduler, num_epo
             # deep copy the model
             if phase == 'valid' and epoch_acc > best_acc:
                 if epoch_recall==1 and epoch_precision > best_precision:
-                    torch.save(model_ft.state_dict(), 
+                    torch.save(model.state_dict(), 
                                os.path.join(save_model_dir, save_model_name+'_{}_{}_recall_1.0.pkl'.format(epoch, save_day)))
                     print('saving model recall=1.0 epoch :{}'.format(epoch))
                     recall_1_precision = epoch_precision
                 best_precision = epoch_precision
                 best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model_ft.state_dict())
+                best_model_wts = copy.deepcopy(model.state_dict())
+        
         print()
 
     time_elapsed = time.time() - since
@@ -408,7 +410,7 @@ def train_multiple_model_metrics(model, criterion, optimizer, scheduler, num_epo
 
     # load best model weights
     model.load_state_dict(best_model_wts)
-    torch.save(model_ft.state_dict(), 
+    torch.save(model.state_dict(), 
                os.path.join(save_model_dir, save_model_name+'_{}_{}_best.pkl'.format(epoch, save_day)))
     writer.close()
     
