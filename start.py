@@ -74,8 +74,8 @@ np.random.seed(42)
 image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir_path, x),
                                           data_transforms[x])
                   for x in ['train', 'valid', 'test']}
-dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=32,
-                                             shuffle=True, num_workers=0, worker_init_fn=worker_init_fn)
+dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=128,
+                                             shuffle=True, num_workers=2, worker_init_fn=worker_init_fn)
               for x in ['train', 'valid', 'test']}
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'valid', 'test']}
 class_names = image_datasets['train'].classes
@@ -106,8 +106,6 @@ inputs, classes = next(iter(dataloaders['train']))
 out = torchvision.utils.make_grid(inputs)
 
 imshow(out, title=[class_names[x] for x in classes])
-
-# 
 
 # %%
 # モデルの定義 -> GPUへ送る
@@ -143,25 +141,28 @@ criterion = nn.CrossEntropyLoss()
 
 # オプティマイザ
 # モーメンタム付きSGDが割と最強らしい
-optimizer_ft = optim.SGD(model_ft.parameters(), 
+optimizer = optim.SGD(model_res.parameters(), 
                          lr=0.001,
                          momentum=0.9, # モーメンタム係数
                          nesterov=False # ネステロフ加速勾配法
                          )
 
 # 学習スケジューラ
-exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+# とりあえずCosineAnnealingLRを使っとけ
+cos_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=50)
+
+exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
 # %%
 # 学習
-model_ft = train_simple_model(model_ft,
+model_ft = train_simple_model(model_res,
                               dataloaders,
                               class_names, 
                               device,   
                               criterion, 
-                              optimizer=optimizer_ft, 
-                              scheduler=exp_lr_scheduler,
-                              num_epochs=2)
+                              optimizer, 
+                              scheduler=cos_lr_scheduler,
+                              num_epochs=200)
 
 # %%
 visualize_model(model_ft, 
@@ -173,19 +174,19 @@ visualize_model(model_ft,
 
 # %%
 # 学習
-model_ft = train_multiple_model_metrics(model_res, 
+model_res = train_multiple_model_metrics(model_res, 
                                         dataloaders,
                                         class_names, 
                                         device,   
                                         criterion, 
-                                        optimizer=optimizer_res, 
-                                        scheduler=exp_lr_scheduler, 
-                                        num_epochs=20, 
-                                        save_model_name='metrics_test_model_multiple_ft',
-                                        save_tensorboard_name='image_test_runs')
+                                        optimizer, 
+                                        scheduler=cos_lr_scheduler, 
+                                        num_epochs=200, 
+                                        save_model_name='model_multiple_res',
+                                        save_tensorboard_name='res_runs')
 
 # %%
-visualize_model(model_ft, 
+visualize_model(model_res, 
                 dataloaders,
                 class_names,
                 device, 
