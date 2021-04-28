@@ -189,5 +189,4 @@ with experiment.train():
                        num_epochs=hyper_params['num_epochs']
                        )
     
-    
-experiment.end()
+    experiment.end()
