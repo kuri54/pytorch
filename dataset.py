@@ -1,18 +1,6 @@
 import os
 import shutil
 
-import numpy as np
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from PIL import Image
-from pathlib import Path
-
-from sklearn.metrics import *
-
-import torch.utils.data as data
-from torchvision import transforms
-
 def split_dataset_into_3(path_to_dataset, train_ratio, valid_ratio):
     """
     datasetを3つのサブセットに分割する(test,validation,train)
@@ -80,43 +68,6 @@ def split_dataset_into_3(path_to_dataset, train_ratio, valid_ratio):
             shutil.copyfile(source_file, dst_file)
 
     return
-
-def plot_confusion_matrix(labels, preds, class_names):
-    """
-    Confusion Matrixをプロットする
-    
-    Parameters
-    ----------
-    labels: int
-        正解ラベル（CPUに戻しておく必要がある）
-    preds: int
-        予測ラベル（CPUに戻しておく必要がある）
-    class_names: list of str
-        ラベル名のリスト
-    
-    Returns
-    -------
-    Confusion Matrixをプロットしたimageファイル
-    """
-    fig = plt.figure()
-    plt.ion()
-    plt.rcParams['figure.subplot.bottom'] = 0.2
-    cm = confusion_matrix(y_true=labels, y_pred=preds)
-    cm = pd.DataFrame(data=cm, index=class_names, columns=class_names)
-    sns.heatmap(cm, annot=True, cmap='Blues', square=True, fmt='d')
-    plt.ylim(0, cm.shape[0])
-    plt.xlabel('Prediction')
-    plt.ylabel('Label (Ground Truth)')
-    plt.xticks(rotation=30)
-    plt.yticks(rotation=0)
-    plt.close(fig)
-
-    # 画像がジャギらないようにimage形式に変換する
-    canvas = fig.canvas.draw()
-    plot_image = fig.canvas.renderer._renderer
-    plot_image_array = np.array(plot_image).transpose(2, 0, 1)
-    
-    return plot_image_array
 
 # class ImageTransform(object):
 #     '''
