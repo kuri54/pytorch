@@ -22,16 +22,16 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision
 from torchvision import datasets, models, transforms
 
-from dataset import split_dataset_into_3, plot_confusion_matrix
+from dataset import split_dataset_into_3
 from model.preact_resnet import PreActResNet18, PreActResNet50
 from train import train_simple_model, visualize_model
 from train import train_binary_model_metrics, train_multiple_model_metrics
 
 
 # %%
-# data_path = '../../datasets/stanford-dogs/Test_Images'
-# data_dir_path = '../../datasets/stanford-dogs/'
-data_dir_path = '../../datasets/ants_bees/'
+data_path = '../../datasets/stanford-dogs/Test_Images'
+data_dir_path = '../../datasets/stanford-dogs/'
+# data_dir_path = '../../datasets/ants_bees/'
 
 # %%
 # データセットの分割
@@ -73,17 +73,15 @@ np.random.seed(42)
 # dataloaderの作成
 image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir_path, x),
                                           data_transforms[x])
-                  for x in ['train', 'valid'
-                            # , 'test'
-                            ]}
+                  for x in ['train', 'valid' , 'test']}
+                  # for x in ['train', 'valid']}
 dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=128,
                                              shuffle=True, num_workers=2, worker_init_fn=worker_init_fn)
-              for x in ['train', 'valid'
-                        # , 'test'
-                        ]}
-dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'valid'
-                                                     # , 'test'
-                                                     ]}
+              for x in ['train', 'valid', 'test']}
+              # for x in ['train', 'valid']}
+dataset_sizes = {x: len(image_datasets[x]) 
+                 for x in ['train', 'valid', 'test']}
+                 # for x in ['train', 'valid']}
 class_names = image_datasets['train'].classes
 
 print(dataset_sizes)
@@ -126,11 +124,11 @@ model_ft = model_ft.to(device)
 
 # %%
 # PreActResNet18
-model_res = PreActResNet18(in_channels=3, num_classes=2)
+model_res = PreActResNet18(in_channels=3, num_classes=5)
 model_res
 
 # Liner部分のサイズが合わないので再構築
-model_res.linear = nn.Linear(512 * 7 * 7, 2)
+model_res.linear = nn.Linear(512 * 7 * 7, 5)
 model_res
 
 model_res = model_res.to(device)
@@ -180,14 +178,14 @@ visualize_model(model_ft,
 
 # %%
 # 学習
-model_res = train_binary_model_metrics(model_res, 
+model_res = train_multiple_model_metrics(model_res, 
                                         dataloaders,
                                         class_names, 
                                         device,   
                                         criterion, 
                                         optimizer, 
                                         scheduler=cos_lr_scheduler, 
-                                        num_epochs=5, 
+                                        num_epochs=2, 
                                         save_model_name='model_binary_res',
                                         save_tensorboard_name='res_runs')
 
@@ -224,3 +222,7 @@ visualize_model(model_conv)
 
 # %%
 # 学習
+
+len(pred_all)
+labels_all
+labels_binary
