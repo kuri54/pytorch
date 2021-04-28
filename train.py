@@ -141,6 +141,9 @@ def train_binary_model_metrics(model, dataloaders, class_names, device, criterio
 
             running_loss = 0.0
             running_corrects = 0
+            
+            labels_all = []
+            pred_all = []
 
             for idx, (inputs, labels) in enumerate(dataloaders[phase]):
                 inputs = inputs.to(device)
@@ -153,6 +156,9 @@ def train_binary_model_metrics(model, dataloaders, class_names, device, criterio
                     axis = 1
                     _, preds = torch.max(outputs, axis)
                     loss = criterion(outputs, labels) 
+                    
+                    pred_all.extend(predict.item() for predict in preds)
+                    labels_all.extend(label.item() for label in labels)
 
                     if phase == 'train':
                         loss.backward()
@@ -161,6 +167,7 @@ def train_binary_model_metrics(model, dataloaders, class_names, device, criterio
                 # 学習の評価＆統計
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
+                
             if phase == 'train':
                 scheduler.step()
                 if epoch%10 == 0:
@@ -171,10 +178,10 @@ def train_binary_model_metrics(model, dataloaders, class_names, device, criterio
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
-            metrics_dict = classification_report(y_true=labels.cpu(), y_pred=preds.cpu(), output_dict=True)
+            metrics_dict = classification_report(y_true=labels_all, y_pred=pred_all, output_dict=True, zero_division=0)
                         
-            fpr, tpr, thresholds = roc_curve(y_true=labels.cpu(), y_score=preds.cpu())
-            auc = roc_auc_score(y_true=labels.cpu(), y_score=preds.cpu())
+            fpr, tpr, thresholds = roc_curve(y_true=labels_all, y_score=pred_all)
+            auc = roc_auc_score(y_true=labels_all, y_score=pred_all)
             
             fig = plt.figure()
             plt.plot(fpr, tpr, label='ROC curve (area = {:.2f})'.format(auc))
@@ -284,7 +291,7 @@ def train_multiple_model_metrics(model, dataloaders, class_names, device, criter
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
             
-            metrics_dict = classification_report(y_true=labels.cpu(), y_pred=preds.cpu(), output_dict=True)
+            metrics_dict = classification_report(y_true=labels_all, y_pred=pred_all, output_dict=True, zero_division=0)
 
             epoch_recall = metrics_dict['macro avg']['recall']
             epoch_precision = metrics_dict['macro avg']['precision']
