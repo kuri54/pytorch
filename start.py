@@ -24,12 +24,10 @@ from torchvision import datasets, models, transforms
 
 from dataset import split_dataset_into_3
 from model.preact_resnet import PreActResNet18, PreActResNet50
-from train import train_simple_model, visualize_model
-from train import train_binary_model_metrics, train_multiple_model_metrics
-
+from train import train_simple_model, visualize_model, train_model_metrics
 
 # %%
-data_path = '../../datasets/stanford-dogs/Test_Images'
+# data_path = '../../datasets/stanford-dogs/Test_Images'
 data_dir_path = '../../datasets/stanford-dogs/'
 # data_dir_path = '../../datasets/ants_bees/'
 
@@ -145,7 +143,7 @@ criterion = nn.CrossEntropyLoss()
 
 # オプティマイザ
 # モーメンタム付きSGDが割と最強らしい
-optimizer = optim.SGD(model_res.parameters(), 
+optimizer = optim.SGD(model_ft.parameters(), 
                          lr=0.001,
                          momentum=0.9, # モーメンタム係数
                          nesterov=False # ネステロフ加速勾配法
@@ -178,19 +176,19 @@ visualize_model(model_ft,
 
 # %%
 # 学習
-model_res = train_multiple_model_metrics(model_res, 
-                                        dataloaders,
-                                        class_names, 
-                                        device,   
-                                        criterion, 
-                                        optimizer, 
-                                        scheduler=cos_lr_scheduler, 
-                                        num_epochs=2, 
-                                        save_model_name='model_binary_res',
-                                        save_tensorboard_name='res_runs')
+model_ft = train_model_metrics(model_ft, 
+                                dataloaders,
+                                class_names, 
+                                device,   
+                                criterion, 
+                                optimizer, 
+                                scheduler=cos_lr_scheduler, 
+                                num_epochs=2, 
+                                save_model_name='test_model',
+                                save_tensorboard_name='test_runs')
 
 # %%
-visualize_model(model_res, 
+visualize_model(model_ft, 
                 dataloaders,
                 class_names,
                 device, 
