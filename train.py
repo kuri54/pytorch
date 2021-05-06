@@ -16,7 +16,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 from dataset import split_dataset_into_3
-from evaluator import plot_cm, plot_roc
+from evaluator import *
 
 # %%
 # 学習ループ
@@ -166,9 +166,6 @@ def train_model_metrics(model, dataloaders, class_names, device, criterion, opti
                     _, preds = torch.max(outputs, axis)
                     loss = criterion(outputs, labels) 
                     
-                    pred_all.extend(predict.item() for predict in preds)
-                    labels_all.extend(label.item() for label in labels)
-                    
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
@@ -176,6 +173,9 @@ def train_model_metrics(model, dataloaders, class_names, device, criterion, opti
                 # 学習の評価＆統計
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data)
+                
+                pred_all.extend(predict.item() for predict in preds)
+                labels_all.extend(label.item() for label in labels)
                             
             if phase == 'train':
                 scheduler.step()
