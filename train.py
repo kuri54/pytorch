@@ -27,7 +27,7 @@ def train_simple_model(model, dataloaders, class_names, device, criterion, optim
     best_acc = 0.0
 
     for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+        print('Epoch {}/{}'.format(epoch + 1, num_epochs))
         print('-' * 10)
 
         for phase in ['train', 'valid']:
@@ -139,7 +139,7 @@ def train_model_metrics(model, dataloaders, class_names, device, criterion, opti
         task = 'multi'
 
     for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+        print('Epoch {}/{}'.format(epoch + 1, num_epochs))
         print('-' * 10)
 
         for phase in ['train', 'valid']:
