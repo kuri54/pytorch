@@ -73,10 +73,21 @@ image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir_path, x),
                                           data_transforms[x])
                   for x in ['train', 'valid' , 'test']}
                   # for x in ['train', 'valid']}
-dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=128,
-                                             shuffle=True, num_workers=2, worker_init_fn=worker_init_fn)
-              for x in ['train', 'valid', 'test']}
-              # for x in ['train', 'valid']}
+                  
+dataloaders = {'train': torch.utils.data.DataLoader(image_datasets['train'], 
+                                              batch_size=128,
+                                              shuffle=True, 
+                                              num_workers=2, 
+                                              worker_init_fn=worker_init_fn), 
+               'valid': torch.utils.data.DataLoader(image_datasets['valid'], 
+                                                             batch_size=128, 
+                                                             num_workers=2, 
+                                                             worker_init_fn=worker_init_fn),
+               'test': torch.utils.data.DataLoader(image_datasets['test'], 
+                                                             batch_size=128, 
+                                                             num_workers=2, 
+                                                             worker_init_fn=worker_init_fn)}
+                                                             
 dataset_sizes = {x: len(image_datasets[x]) 
                  for x in ['train', 'valid', 'test']}
                  # for x in ['train', 'valid']}
