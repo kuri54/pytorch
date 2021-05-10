@@ -34,14 +34,14 @@ from password_api.my_api import *
 
 # %%
 # loggingを開始
-experiment = Experiment(api_key=MY_COMETML_API_KEY, project_name="pytorch_test2")
+project_name = 'pytorch_test2'
+experiment = Experiment(api_key=MY_COMETML_API_KEY, project_name=project_name)
 
 # %%
 # ハイパラをlogging
 hyper_params = {
-    'image_size': 32,
     'num_classes': 5,
-    'batch_size': 128,
+    'batch_size': 32,
     'num_epochs': 2,
     'learning_rate': 0.01
 }
@@ -95,13 +95,20 @@ image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir_path, x),
                                           data_transforms[x])
                   for x in ['train', 'valid' , 'test']}
                   # for x in ['train', 'valid']}
-dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], 
-                                              batch_size=128,
+dataloaders = {'train': torch.utils.data.DataLoader(image_datasets['train'], 
+                                              batch_size=hyper_params['batch_size'],
                                               shuffle=True, 
                                               num_workers=2, 
-                                              worker_init_fn=worker_init_fn)
-              for x in ['train', 'valid', 'test']}
-              # for x in ['train', 'valid']}
+                                              worker_init_fn=worker_init_fn), 
+               'valid': torch.utils.data.DataLoader(image_datasets['valid'], 
+                                                             batch_size=hyper_params['batch_size'], 
+                                                             num_workers=2, 
+                                                             worker_init_fn=worker_init_fn),
+               'test': torch.utils.data.DataLoader(image_datasets['test'], 
+                                                             batch_size=hyper_params['batch_size'], 
+                                                             num_workers=2, 
+                                                             worker_init_fn=worker_init_fn)}
+
 dataset_sizes = {x: len(image_datasets[x]) 
                  for x in ['train', 'valid', 'test']}
                  # for x in ['train', 'valid']}
@@ -141,7 +148,7 @@ model_ft = models.resnet18(pretrained=True)
 
 # 最終のFC層を再定義
 num_ftrs = model_ft.fc.in_features
-model_ft.fc = nn.Linear(num_ftrs, len(class_names))
+model_ft.fc = nn.Linear(num_ftrs, hyper_params['num_classes'])
 
 model_ft = model_ft.to(device)
 
@@ -169,16 +176,14 @@ exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 def valid_index_to_example(index):
     tmp, _ = image_datasets['valid'][index]
     img = tmp.numpy()[0]
-    data = experiment.log_image(img, name="valid_%d.png" % index)
+    image_name = "confusion-matrix-%05d.png" % index
+    data = experiment.log_image(img, name=image_name)
 
-    if data is None:
-        return None
-
-    return {"sample": str(index), "assetId": data["imageId"]}
+    return {"sample": image_name, "assetId": data["imageId"]}
 
 # cm用のミニ画像を作成（test用）
 def test_index_to_example(index):
-    tmp, _ = image_datasets['test'][index]
+    tmp, _= inputs_all[index]
     img = tmp.numpy()[0]
     data = experiment.log_image(img, name="test_%d.png" % index)
 
@@ -189,7 +194,12 @@ def test_index_to_example(index):
 
 # %%
 # 学習ループ（comet.mlへ転送）
-def train_model_cometml(model, dataloaders, class_names, device, criterion, optimizer, scheduler, num_epochs=25):
+def train_model_cometml(model, dataloaders, class_names, device, criterion, optimizer, scheduler, num_epochs=25, save_model_name=project_name):
+    save_model_dir = 'save_models/{}'.format(save_model_name)
+    os.makedirs(save_model_dir, exist_ok=True)
+    
+    best_model_wts = copy.deepcopy(model.state_dict())
+    best_acc = 0.0
     
     task = 'binary'
     
@@ -207,8 +217,10 @@ def train_model_cometml(model, dataloaders, class_names, device, criterion, opti
         for phase in ['train', 'valid']:
             if phase == 'train':
                 model.train()
+                experiment.train()
             else:
                 model.eval()
+                experiment.validate()
 
             running_loss = 0.0
             running_corrects = 0
@@ -236,17 +248,27 @@ def train_model_cometml(model, dataloaders, class_names, device, criterion, opti
                 
                 pred_all.extend(predict.item() for predict in preds)
                 labels_all.extend(label.item() for label in labels)
-                
+                                
             if phase == 'train':
                 scheduler.step()
 
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
+            
+            metrics_dict = classification_report(y_true=labels_all, y_pred=pred_all, output_dict=True, zero_division=0)
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
+            epoch_recall = metrics_dict['macro avg']['recall']
+            epoch_precision = metrics_dict['macro avg']['precision']
+            epoch_f1 = metrics_dict['macro avg']['f1-score']
+
+            print('{} Loss: {:.4f} Acc: {:.4f} Recall: {:.4f} Precision: {:.4f} F1-score: {:.4f}'.format(
+                phase, epoch_loss, epoch_acc, epoch_recall, epoch_precision, epoch_f1))
             
             experiment.log_metric('{}_loss'.format(phase), running_loss / len(dataloaders[phase].dataset), step=epoch)
             experiment.log_metric('{}_acc'.format(phase), running_corrects.double() / len(dataloaders[phase].dataset), step=epoch)
+            experiment.log_metric('{}_recall'.format(phase), epoch_recall / len(dataloaders[phase].dataset), step=epoch)
+            experiment.log_metric('{}_precision'.format(phase), epoch_precision / len(dataloaders[phase].dataset), step=epoch)
+            experiment.log_metric('{}_f1'.format(phase), epoch_f1 / len(dataloaders[phase].dataset), step=epoch)
             
             fig = plot_roc_fig(labels_all, pred_all, class_names, task)
             experiment.log_figure('ROC', fig, step=epoch)
@@ -254,27 +276,41 @@ def train_model_cometml(model, dataloaders, class_names, device, criterion, opti
             if phase == 'valid':
                 experiment.log_confusion_matrix(labels_all, pred_all,
                                                 labels=class_names, 
-                                                title='Confusion Matrix, Epoch #{}'.format(epoch),
-                                                file_name='confusion-matrix-{}.json'.format(epoch), 
+                                                title='Confusion Matrix, Epoch #{}'.format(epoch + 1),
+                                                file_name='confusion-matrix-{}.json'.format(epoch + 1), 
                                                 index_to_example_function=valid_index_to_example
                                                 )
         
-        print()
+            # best modelの保存
+            if phase == 'valid' and epoch_acc > best_acc:
+                # if epoch_recall==1 and epoch_precision > best_precision:
+                #     torch.save(model.state_dict(), 
+                #                os.path.join(save_model_dir, save_model_name+'_{}_{}_recall_1.0.pkl'.format(epoch)))
+                #     print('saving model epoch :{}'.format(epoch))
+                #     recall_1_precision = epoch_precision
+                best_precision = epoch_precision
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(model.state_dict())
     
+    model.load_state_dict(best_model_wts)
+    torch.save(model.state_dict(), 
+               os.path.join(save_model_dir, save_model_name+'_bs{}_rl{}_epoch{}_best.pkl'.format(hyper_params['batch_size'], hyper_params['learning_rate'], epoch)))
+    
+    print('-' * 10)
+    print('Best val Acc: {:4f}, Precision: {:.4f}'.format(best_acc, best_precision))
     print('Fin')
 
 
 # %%
-with experiment.train():
-    train_model_cometml(model_ft,
-                       dataloaders, 
-                       class_names, 
-                       device, 
-                       criterion, 
-                       optimizer, 
-                       scheduler=cos_lr_scheduler, 
-                       num_epochs=hyper_params['num_epochs']
-                       )
+train_model_cometml(model_ft,
+                   dataloaders, 
+                   class_names, 
+                   device, 
+                   criterion, 
+                   optimizer, 
+                   scheduler=cos_lr_scheduler, 
+                   num_epochs=hyper_params['num_epochs']
+                   )
 
 '''
 test用のループも作りたい
@@ -282,7 +318,3 @@ with experiment.test():
 '''
 
 experiment.end()
-    
-    
-    
-    
