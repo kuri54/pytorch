@@ -95,6 +95,7 @@ image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir_path, x),
                                           data_transforms[x])
                   for x in ['train', 'valid' , 'test']}
                   # for x in ['train', 'valid']}
+
 dataloaders = {'train': torch.utils.data.DataLoader(image_datasets['train'], 
                                               batch_size=hyper_params['batch_size'],
                                               shuffle=True, 
@@ -112,6 +113,7 @@ dataloaders = {'train': torch.utils.data.DataLoader(image_datasets['train'],
 dataset_sizes = {x: len(image_datasets[x]) 
                  for x in ['train', 'valid', 'test']}
                  # for x in ['train', 'valid']}
+
 class_names = image_datasets['train'].classes
 
 print(dataset_sizes)
@@ -176,7 +178,7 @@ exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 def valid_index_to_example(index):
     tmp, _ = image_datasets['valid'][index]
     img = tmp.numpy()[0]
-    image_name = "confusion-matrix-%05d.png" % index
+    image_name = 'confusion-matrix-{}.png'.format(index)
     data = experiment.log_image(img, name=image_name)
 
     return {"sample": image_name, "assetId": data["imageId"]}
@@ -295,6 +297,8 @@ def train_model_cometml(model, dataloaders, class_names, device, criterion, opti
     model.load_state_dict(best_model_wts)
     torch.save(model.state_dict(), 
                os.path.join(save_model_dir, save_model_name+'_bs{}_rl{}_epoch{}_best.pkl'.format(hyper_params['batch_size'], hyper_params['learning_rate'], epoch)))
+    
+    experiment.log_metric('best_val_acc', best_acc)
     
     print('-' * 10)
     print('Best val Acc: {:4f}, Precision: {:.4f}'.format(best_acc, best_precision))
