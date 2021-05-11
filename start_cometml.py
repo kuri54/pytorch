@@ -141,7 +141,9 @@ def imshow(inp, title=None):
 inputs, classes = next(iter(dataloaders['train']))
 out = torchvision.utils.make_grid(inputs)
 
-imshow(out, title=[class_names[x] for x in classes])
+imshow(out
+       # , title=[class_names[x] for x in classes]
+       )
 
 # %%
 # モデルの定義 -> GPUへ送る
@@ -185,12 +187,10 @@ def valid_index_to_example(index):
 
 # cm用のミニ画像を作成（test用）
 def test_index_to_example(index):
-    tmp, _= inputs_all[index]
+    tmp, _= image_datasets['test'][index]
     img = tmp.numpy()[0]
-    data = experiment.log_image(img, name="test_%d.png" % index)
-
-    if data is None:
-        return None
+    image_name = 'test-{}.png'.format(index)
+    data = experiment.log_image(img, name=image_name)
 
     return {"sample": str(index), "assetId": data["imageId"]}
 
@@ -296,7 +296,7 @@ def train_model_cometml(model, dataloaders, class_names, device, criterion, opti
     
     model.load_state_dict(best_model_wts)
     torch.save(model.state_dict(), 
-               os.path.join(save_model_dir, save_model_name+'_bs{}_rl{}_epoch{}_best.pkl'.format(hyper_params['batch_size'], hyper_params['learning_rate'], epoch)))
+               os.path.join(save_model_dir, save_model_name+'_bs{}_rl{}_best.pkl'.format(hyper_params['batch_size'], hyper_params['learning_rate'])))
     
     experiment.log_metric('best_val_acc', best_acc)
     
@@ -304,9 +304,45 @@ def train_model_cometml(model, dataloaders, class_names, device, criterion, opti
     print('Best val Acc: {:4f}, Precision: {:.4f}'.format(best_acc, best_precision))
     print('Fin')
 
+    return model
+
+# test画像で検証 -> 可視化（comet.mlへ転送）
+def visualize_model(model, dataloaders, class_names, device, imshow, num_images=6):
+    experiment.test()
+    model.eval() 
+
+    with torch.no_grad():
+        correct = 0
+        total = 0
+           
+        labels_all = []
+        pred_all = []
+           
+        for idx, (inputs, labels) in enumerate(dataloaders['test']):
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            outputs = model(inputs)
+            _, preds = torch.max(outputs, 1)
+            
+            correct += torch.sum(preds == labels.data)
+            total += inputs.size(0)
+            
+            pred_all.extend(predict.item() for predict in preds)
+            labels_all.extend(label.item() for label in labels)
+            
+        print('Test Accuracy: %2d%% (%2d/%2d)' % (100. * correct / total, correct, total))
+        experiment.log_metric('test_acc', 100. * correct / total)
+
+    experiment.log_confusion_matrix(labels_all, pred_all,
+                                    labels=class_names, 
+                                    title='Test Confusion Matrix',
+                                    file_name='test-confusion-matrix.json', 
+                                    index_to_example_function=test_index_to_example
+                                    )
 
 # %%
-train_model_cometml(model_ft,
+model = train_model_cometml(model_ft,
                    dataloaders, 
                    class_names, 
                    device, 
@@ -316,9 +352,11 @@ train_model_cometml(model_ft,
                    num_epochs=hyper_params['num_epochs']
                    )
 
-'''
-test用のループも作りたい
-with experiment.test():
-'''
+visualize_model(model_ft, 
+                dataloaders, 
+                class_names, 
+                device, 
+                imshow, 
+                num_images=6)
 
 experiment.end()
