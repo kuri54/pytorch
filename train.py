@@ -88,6 +88,9 @@ def visualize_model(model, dataloaders, class_names, device, imshow, num_images=
     fig = plt.figure()
 
     with torch.no_grad():
+        correct = 0
+        total = 0
+        
         for idx, (inputs, labels) in enumerate(dataloaders['test']):
             inputs = inputs.to(device)
             labels = labels.to(device)
@@ -95,24 +98,22 @@ def visualize_model(model, dataloaders, class_names, device, imshow, num_images=
             outputs = model(inputs)
             _, preds = torch.max(outputs, 1)
             
-            correct = 0
-            total = 0
             correct += torch.sum(preds == labels.data)
             total += inputs.size(0)
             
-            print('Test Accuracy: %2d%% (%2d/%2d)' % (100. * correct / total, correct, total))
-            
-            for j in range(inputs.size()[0]):
-                images_so_far += 1
-                plt.subplots_adjust(wspace=0.4, hspace=1.0)
-                ax = plt.subplot(num_images//2, 2, images_so_far)
-                ax.axis('off')
-                ax.set_title('Predicted: {}\nGround Truth: {}'.format(class_names[preds[j]], class_names[labels[j]]))
-                imshow(inputs.cpu().data[j])
+        print('Test Accuracy: %2d%% (%2d/%2d)' % (100. * correct / total, correct, total))
+        
+        for j in range(inputs.size()[0]):
+            images_so_far += 1
+            plt.subplots_adjust(wspace=0.4, hspace=1.0)
+            ax = plt.subplot(num_images//2, 2, images_so_far)
+            ax.axis('off')
+            ax.set_title('Predicted: {}\nGround Truth: {}'.format(class_names[preds[j]], class_names[labels[j]]))
+            imshow(inputs.cpu().data[j])
 
-                if images_so_far == num_images:
-                    model.train(mode=was_training)
-                    return
+            if images_so_far == num_images:
+                model.train(mode=was_training)
+                return
                 
         model.train(mode=was_training)
 
