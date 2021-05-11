@@ -37,12 +37,11 @@ from password_api.my_api import *
 project_name = 'pytorch_test2'
 experiment = Experiment(api_key=MY_COMETML_API_KEY, project_name=project_name)
 
-# %%
 # ハイパラをlogging
 hyper_params = {
     'num_classes': 5,
-    'batch_size': 32,
-    'num_epochs': 2,
+    'batch_size': 8,
+    'num_epochs': 100,
     'learning_rate': 0.01
 }
 
@@ -307,7 +306,7 @@ def train_model_cometml(model, dataloaders, class_names, device, criterion, opti
     return model
 
 # test画像で検証 -> 可視化（comet.mlへ転送）
-def visualize_model(model, dataloaders, class_names, device, imshow, num_images=6):
+def visualize_model(model, dataloaders, class_names, device):
     experiment.test()
     model.eval() 
 
@@ -352,11 +351,10 @@ model = train_model_cometml(model_ft,
                    num_epochs=hyper_params['num_epochs']
                    )
 
+# %%
 visualize_model(model_ft, 
                 dataloaders, 
                 class_names, 
-                device, 
-                imshow, 
-                num_images=6)
+                device)
 
 experiment.end()
