@@ -30,19 +30,18 @@ from sklearn.preprocessing import label_binarize
 from itertools import cycle
 
 from evaluator import plot_roc_fig
-from password_api.my_api import *
 
 # %%
-# loggingを開始
+# loggingを開始 -> API情報を載せた'.comet.config'をhomeディレクトリに作成しているので、APIの入力は必要ない
 project_name = 'pytorch_test2'
-experiment = Experiment(api_key=MY_COMETML_API_KEY, project_name=project_name)
+experiment = Experiment(project_name=project_name)
 
 # ハイパラをlogging
 hyper_params = {
     'num_classes': 5,
-    'batch_size': 8,
+    'batch_size': 256,
     'num_epochs': 100,
-    'learning_rate': 0.01
+    'learning_rate': 0.0001
 }
 
 experiment.log_parameters(hyper_params)
@@ -175,6 +174,7 @@ cos_lr_scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=50)
 
 exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
+# %%
 # cm用のミニ画像を作成（valid用）
 def valid_index_to_example(index):
     tmp, _ = image_datasets['valid'][index]
@@ -193,7 +193,6 @@ def test_index_to_example(index):
 
     return {"sample": str(index), "assetId": data["imageId"]}
 
-# %%
 # 学習ループ（comet.mlへ転送）
 def train_model_cometml(model, dataloaders, class_names, device, criterion, optimizer, scheduler, num_epochs=25, save_model_name=project_name):
     save_model_dir = 'save_models/{}'.format(save_model_name)
@@ -265,11 +264,11 @@ def train_model_cometml(model, dataloaders, class_names, device, criterion, opti
             print('{} Loss: {:.4f} Acc: {:.4f} Recall: {:.4f} Precision: {:.4f} F1-score: {:.4f}'.format(
                 phase, epoch_loss, epoch_acc, epoch_recall, epoch_precision, epoch_f1))
             
-            experiment.log_metric('{}_loss'.format(phase), running_loss / len(dataloaders[phase].dataset), step=epoch)
-            experiment.log_metric('{}_acc'.format(phase), running_corrects.double() / len(dataloaders[phase].dataset), step=epoch)
-            experiment.log_metric('{}_recall'.format(phase), epoch_recall / len(dataloaders[phase].dataset), step=epoch)
-            experiment.log_metric('{}_precision'.format(phase), epoch_precision / len(dataloaders[phase].dataset), step=epoch)
-            experiment.log_metric('{}_f1'.format(phase), epoch_f1 / len(dataloaders[phase].dataset), step=epoch)
+            experiment.log_metric('{}_loss'.format(phase), epoch_loss, step=epoch)
+            experiment.log_metric('{}_acc'.format(phase), epoch_acc, step=epoch)
+            experiment.log_metric('{}_recall'.format(phase), epoch_recall, step=epoch)
+            experiment.log_metric('{}_precision'.format(phase), epoch_precision, step=epoch)
+            experiment.log_metric('{}_f1'.format(phase), epoch_f1, step=epoch)
             
             fig = plot_roc_fig(labels_all, pred_all, class_names, task)
             experiment.log_figure('ROC', fig, step=epoch)
@@ -351,7 +350,6 @@ model = train_model_cometml(model_ft,
                    num_epochs=hyper_params['num_epochs']
                    )
 
-# %%
 visualize_model(model_ft, 
                 dataloaders, 
                 class_names, 
