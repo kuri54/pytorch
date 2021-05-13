@@ -101,6 +101,7 @@ class MyDataset(data.Dataset):
 train_transform_albu = A.Compose([
     A.HorizontalFlip(p=0.5),
     A.RandomResizedCrop(224, 224), 
+    A.Cutout(p=0.5),
     A.Normalize([0.5, 0.5, 0.5], [0.2, 0.2, 0.2]),
     ToTensorV2()
     ])
@@ -169,7 +170,7 @@ def imshow(inp, title=None):
     # if title is not None:
     #     plt.title(title)
 
-inputs, classes = next(iter(dataloaders['train']))
+inputs, classes = next(iter(test_dataset))
 out = torchvision.utils.make_grid(inputs)
 
 imshow(out
