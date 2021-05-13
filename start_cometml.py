@@ -295,6 +295,8 @@ def train_model_cometml(model, dataloaders, class_names, device, criterion, opti
     model.load_state_dict(best_model_wts)
     torch.save(model.state_dict(), 
                os.path.join(save_model_dir, save_model_name+'_bs{}_rl{}_best.pkl'.format(hyper_params['batch_size'], hyper_params['learning_rate'])))
+    experiment.log_model('best_model',
+                          os.path.join(save_model_dir,save_model_name+'_bs{}_rl{}_best.pkl'.format(hyper_params['batch_size'], hyper_params['learning_rate'])))
     
     experiment.log_metric('best_val_acc', best_acc)
     
