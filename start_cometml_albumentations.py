@@ -29,6 +29,7 @@ import torchvision
 from torchvision import datasets, models, transforms
 
 from evaluator import plot_roc_fig
+from dataset import MyDataset
 
 # %%
 # loggingを開始 -> API情報を載せた'.comet.config'をhomeディレクトリに作成しているので、APIの入力は必要ない
@@ -71,33 +72,6 @@ valid_list = make_filepath_list(phase='valid')
 test_list = make_filepath_list(phase='test')
 
 # %%
-# Dataset Classの定義
-class MyDataset(data.Dataset):
-    def __init__(self, file_list, class_names, transform=None):
-        self.file_list = file_list
-        self.class_names = class_names
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.file_list)
-    
-    def __getitem__(self, index):
-        img_path = self.file_list[index]
-        image = cv2.imread(img_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        # 画像ラベルをファイル名から抜き出す
-        label = self.file_list[index].split('/')[5]
-        
-        # ラベル名を数値に変換
-        label = self.class_names.index(label)
-        
-        if self.transform is not None:
-            image = self.transform(image=image)["image"]
-        
-        return image, label
-
-# %%
 # albumentationsでデータ水増しと正規化
 train_transform_albu = A.Compose([
     A.HorizontalFlip(p=0.5),
@@ -125,9 +99,9 @@ test_transform_albu = A.Compose([
 class_names = os.listdir(os.path.join(data_dir_path, 'train'))
 class_names
 
-train_dataset = MyDataset(file_list=train_list, class_names=class_names, transform=train_transform_albu)
-valid_dataset = MyDataset(file_list=valid_list, class_names=class_names, transform=valid_transform_albu)
-test_dataset = MyDataset(file_list=test_list, class_names=class_names, transform=test_transform_albu)
+train_dataset = MyDataset(train_list, class_names, transform=train_transform_albu)
+valid_dataset = MyDataset(valid_list, class_names, transform=valid_transform_albu)
+test_dataset = MyDataset(test_list, class_names, transform=test_transform_albu)
 
 # %%
 # シード値の固定
@@ -180,12 +154,13 @@ imshow(out
 
 # %%
 # モデルの定義 -> GPUへ送る
-# ResNet18
-model_ft = models.resnet18(pretrained=True)
+# PreAct-resnet18
+model_ft = torch.hub.load('ecs-vlc/FMix:master', 'preact_resnet18_cifar10_baseline', pretrained=True)
+model_ft
 
 # 最終のFC層を再定義
-num_ftrs = model_ft.fc.in_features
-model_ft.fc = nn.Linear(num_ftrs, hyper_params['num_classes'])
+num_ftrs = model_ft.linear.in_features
+model_ft.linear = nn.Linear(num_ftrs, hyper_params['num_classes'])
 
 model_ft = model_ft.to(device)
 
