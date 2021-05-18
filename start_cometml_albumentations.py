@@ -9,6 +9,7 @@ import datetime
 import pytz
 
 import cv2
+import timm
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -17,6 +18,7 @@ from albumentations.pytorch import ToTensorV2
 import matplotlib.pyplot as plt
 from PIL import Image
 from sklearn.metrics import *
+from pprint import pprint
 
 import torch
 import torch.nn as nn
@@ -40,7 +42,7 @@ experiment = Experiment(project_name=project_name)
 hyper_params = {
     'num_classes': 5,
     'batch_size': 64,
-    'num_epochs': 2,
+    'num_epochs': 100,
     'learning_rate': 0.001
 }
 
@@ -154,13 +156,20 @@ imshow(out
 
 # %%
 # モデルの定義 -> GPUへ送る
+# timmのpretrained modelを表示
+# model_names = timm.list_models(pretrained=True)
+# pprint(model_names)
+
+# EfficientNet_B0
+model_ft = timm.create_model('efficientnet_b0', pretrained=True)
+
 # PreAct-resnet18
-model_ft = torch.hub.load('ecs-vlc/FMix:master', 'preact_resnet18_cifar10_baseline', pretrained=True)
+# model_ft = torch.hub.load('ecs-vlc/FMix:master', 'preact_resnet18_cifar10_baseline', pretrained=True)
 model_ft
 
 # 最終のFC層を再定義
-num_ftrs = model_ft.linear.in_features
-model_ft.linear = nn.Linear(num_ftrs, hyper_params['num_classes'])
+num_ftrs = model_ft.classifier.in_features
+model_ft.classifier = nn.Linear(num_ftrs, hyper_params['num_classes'])
 
 model_ft = model_ft.to(device)
 
@@ -301,6 +310,8 @@ def train_model_cometml(model, dataloaders, class_names, device, criterion, opti
                 best_precision = epoch_precision
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
+    
+        print()
     
     model.load_state_dict(best_model_wts)
     torch.save(model.state_dict(), 
