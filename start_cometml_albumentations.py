@@ -3,10 +3,7 @@ from comet_ml import Experiment
 
 # %%
 import os
-import time
 import copy
-import datetime
-import pytz
 
 import cv2
 import timm
@@ -25,7 +22,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import torch.utils.data as data
-from torch.utils.tensorboard import SummaryWriter
 
 import torchvision
 from torchvision import datasets, models, transforms
