@@ -116,3 +116,18 @@ class MyDataset(data.Dataset):
             image = self.transform(image=image)["image"]
         
         return image, label
+
+def make_filepath_list(data_dir_path, phase):
+    phase_data_dir_path = os.path.join(data_dir_path, phase)
+    
+    data_file_list = []
+    
+    for top_dir in os.listdir(phase_data_dir_path):
+        file_dir = os.path.join(phase_data_dir_path, top_dir)
+        file_list = os.listdir(file_dir)
+    
+        data_file_list += [os.path.join(file_dir, file) for file in file_list]
+        
+    print('{}: {}'.format(phase, len(data_file_list)))
+    
+    return data_file_list

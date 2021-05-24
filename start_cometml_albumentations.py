@@ -1,5 +1,9 @@
 # %%
-from comet_ml import Experiment
+%load_ext autoreload
+%autoreload 2
+
+# %%
+from comet_ml import Experiment, ConfusionMatrix
 
 # %%
 import os
@@ -26,8 +30,9 @@ import torch.utils.data as data
 import torchvision
 from torchvision import datasets, models, transforms
 
+from dataset import MyDataset, make_filepath_list
 from evaluator import plot_roc_fig
-from dataset import MyDataset
+from train import train_model_cometml, visualize_model_cometml
 
 # %%
 # loggingを開始 -> API情報を載せた'.comet.config'をhomeディレクトリに作成しているので、APIの入力は必要ない
@@ -38,7 +43,7 @@ experiment = Experiment(project_name=project_name)
 hyper_params = {
     'num_classes': 5,
     'batch_size': 64,
-    'num_epochs': 100,
+    'num_epochs': 10,
     'learning_rate': 0.001
 }
 
@@ -48,26 +53,10 @@ experiment.set_name('batch_size: {} learning_rate: {}'.format(hyper_params['batc
 # %%
 # 画像データへのファイルパスを格納したリストを取得する
 data_dir_path = '../../datasets/stanford-dogs'
-# data_dir_path = '../../datasets/ants_bees/'
 
-def make_filepath_list(phase, data_dir_path=data_dir_path):
-    phase_data_dir_path = os.path.join(data_dir_path, phase)
-    
-    data_file_list = []
-    
-    for top_dir in os.listdir(phase_data_dir_path):
-        file_dir = os.path.join(phase_data_dir_path, top_dir)
-        file_list = os.listdir(file_dir)
-    
-        data_file_list += [os.path.join(file_dir, file) for file in file_list]
-        
-    print('{}: {}'.format(phase, len(data_file_list)))
-    
-    return data_file_list
-
-train_list = make_filepath_list(phase='train')
-valid_list = make_filepath_list(phase='valid')
-test_list = make_filepath_list(phase='test')
+train_list = make_filepath_list(data_dir_path, phase='train')
+valid_list = make_filepath_list(data_dir_path, phase='valid')
+test_list = make_filepath_list(data_dir_path, phase='test')
 
 # %%
 # albumentationsでデータ水増しと正規化
@@ -208,170 +197,31 @@ def test_index_to_example(index):
 
     return {"sample": str(index), "assetId": data["imageId"]}
 
-# 学習ループ（comet.mlへ転送）
-def train_model_cometml(model, dataloaders, class_names, device, criterion, optimizer, scheduler, num_epochs=25, save_model_name=project_name):
-    save_model_dir = 'save_models/{}'.format(save_model_name)
-    os.makedirs(save_model_dir, exist_ok=True)
-    
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_acc = 0.0
-    
-    task = 'binary'
-    
-    if len(class_names) == 2:
-        print('Task: Binary Class')
-        task = 'binary'
-    else:
-        print('Task: Multi Class')
-        task = 'multi'
-    
-    for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch + 1, num_epochs))
-        print('-' * 10)
-
-        for phase in ['train', 'valid']:
-            if phase == 'train':
-                model.train()
-                experiment.train()
-            else:
-                model.eval()
-                experiment.validate()
-
-            running_loss = 0.0
-            running_corrects = 0
-            
-            labels_all = []
-            pred_all = []
-
-            for idx, (inputs, labels) in enumerate(dataloaders[phase]):
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-
-                optimizer.zero_grad()
-
-                with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs)
-                    _, preds = torch.max(outputs, 1)
-                    loss = criterion(outputs, labels)
-
-                    if phase == 'train':
-                        loss.backward()
-                        optimizer.step()
-
-                running_loss += loss.item() * inputs.size(0)
-                running_corrects += torch.sum(preds == labels.data)
-                
-                pred_all.extend(predict.item() for predict in preds)
-                labels_all.extend(label.item() for label in labels)
-                                
-            if phase == 'train':
-                scheduler.step()
-
-            epoch_loss = running_loss / len(dataloaders[phase].dataset)
-            epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
-            
-            metrics_dict = classification_report(y_true=labels_all, y_pred=pred_all, output_dict=True, zero_division=0)
-
-            epoch_recall = metrics_dict['macro avg']['recall']
-            epoch_precision = metrics_dict['macro avg']['precision']
-            epoch_f1 = metrics_dict['macro avg']['f1-score']
-
-            print('{} Loss: {:.4f} Acc: {:.4f} Recall: {:.4f} Precision: {:.4f} F1-score: {:.4f}'.format(
-                phase, epoch_loss, epoch_acc, epoch_recall, epoch_precision, epoch_f1))
-            
-            experiment.log_metric('{}_loss'.format(phase), epoch_loss, step=epoch)
-            experiment.log_metric('{}_acc'.format(phase), epoch_acc, step=epoch)
-            experiment.log_metric('{}_recall'.format(phase), epoch_recall, step=epoch)
-            experiment.log_metric('{}_precision'.format(phase), epoch_precision, step=epoch)
-            experiment.log_metric('{}_f1'.format(phase), epoch_f1, step=epoch)
-            
-            fig = plot_roc_fig(labels_all, pred_all, class_names, task)
-            experiment.log_figure('ROC', fig, step=epoch)
-            
-            if phase == 'valid':
-                experiment.log_confusion_matrix(labels_all, pred_all,
-                                                labels=class_names, 
-                                                title='Confusion Matrix, Epoch #{}'.format(epoch + 1),
-                                                file_name='confusion-matrix-{}.json'.format(epoch + 1), 
-                                                index_to_example_function=valid_index_to_example
-                                                )
-        
-            # best modelの保存
-            if phase == 'valid' and epoch_acc > best_acc:
-                # if epoch_recall==1 and epoch_precision > best_precision:
-                #     torch.save(model.state_dict(), 
-                #                os.path.join(save_model_dir, save_model_name+'_{}_{}_recall_1.0.pkl'.format(epoch)))
-                #     print('saving model epoch :{}'.format(epoch))
-                #     recall_1_precision = epoch_precision
-                best_precision = epoch_precision
-                best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
-    
-        print()
-    
-    model.load_state_dict(best_model_wts)
-    torch.save(model.state_dict(), 
-               os.path.join(save_model_dir, save_model_name+'_bs{}_lr{}_best.pkl'.format(hyper_params['batch_size'], hyper_params['learning_rate'])))
-    experiment.log_model('best_model',
-                          os.path.join(save_model_dir,save_model_name+'_bs{}_lr{}_best.pkl'.format(hyper_params['batch_size'], hyper_params['learning_rate'])))
-    
-    experiment.log_metric('best_val_acc', best_acc)
-    
-    print('-' * 10)
-    print('Best val Acc: {:4f}, Precision: {:.4f}'.format(best_acc, best_precision))
-    print('Fin')
-
-    return model
-
-# test画像で検証 -> 可視化（comet.mlへ転送）
-def visualize_model(model, dataloaders, class_names, device):
-    experiment.test()
-    model.eval() 
-
-    with torch.no_grad():
-        correct = 0
-        total = 0
-           
-        labels_all = []
-        pred_all = []
-           
-        for idx, (inputs, labels) in enumerate(dataloaders['test']):
-            inputs = inputs.to(device)
-            labels = labels.to(device)
-
-            outputs = model(inputs)
-            _, preds = torch.max(outputs, 1)
-            
-            correct += torch.sum(preds == labels.data)
-            total += inputs.size(0)
-            
-            pred_all.extend(predict.item() for predict in preds)
-            labels_all.extend(label.item() for label in labels)
-            
-        print('Test Accuracy: %2d%% (%2d/%2d)' % (100. * correct / total, correct, total))
-        experiment.log_metric('test_acc', 100. * correct / total)
-
-    experiment.log_confusion_matrix(labels_all, pred_all,
-                                    labels=class_names, 
-                                    title='Test Confusion Matrix',
-                                    file_name='test-confusion-matrix.json', 
-                                    index_to_example_function=test_index_to_example
-                                    )
+valid_confusion_matrix = ConfusionMatrix(labels=class_names,
+                                         index_to_example_function=valid_index_to_example) 
+test_confusion_matrix = ConfusionMatrix(labels=class_names,
+                                        index_to_example_function=test_index_to_example) 
 
 # %%
-model = train_model_cometml(model_ft,
-                   dataloaders, 
-                   class_names, 
-                   device, 
-                   criterion, 
-                   optimizer, 
-                   scheduler=cos_lr_scheduler, 
-                   num_epochs=hyper_params['num_epochs']
-                   )
+model = train_model_cometml(experiment, 
+                            hyper_params, 
+                            valid_confusion_matrix, 
+                            model_ft,
+                            dataloaders, 
+                            class_names, 
+                            device, 
+                            criterion, 
+                            optimizer, 
+                            scheduler=cos_lr_scheduler, 
+                            save_model_name=project_name, 
+                            num_epochs=hyper_params['num_epochs']
+                            )
 
-visualize_model(model_ft, 
-                dataloaders, 
-                class_names, 
-                device)
+visualize_model_cometml(experiment, 
+                        test_confusion_matrix, 
+                        model_ft, 
+                        dataloaders, 
+                        class_names, 
+                        device)
 
 experiment.end()
