@@ -1,4 +1,3 @@
-# %%
 from comet_ml import Experiment
 
 import os
@@ -20,7 +19,6 @@ from torch.utils.tensorboard import SummaryWriter
 from dataset import split_dataset_into_3
 from evaluator import *
 
-# %%
 # 学習ループ
 def train_simple_model(model, dataloaders, class_names, device, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
