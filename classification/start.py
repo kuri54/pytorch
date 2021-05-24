@@ -22,9 +22,9 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision
 from torchvision import datasets, models, transforms
 
-from dataset import split_dataset_into_3
+from classification.dataset import split_dataset_into_3
 from model.preact_resnet import PreActResNet18, PreActResNet50
-from train import train_simple_model, visualize_model, train_model_metrics
+from classification.train import train_simple_model, visualize_model, train_model_metrics
 
 # %%
 # data_path = '../../datasets/stanford-dogs/Test_Images'
