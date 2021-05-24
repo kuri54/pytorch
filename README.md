@@ -1,17 +1,12 @@
 # pytorch
+全てATOMのHydrogenもしくはJupyternotebookで動作させることを想定している
 
-## start.py
-dataloaderの作成
-モデルの定義
-学習ループ
-可視化
-tensorboardとの連携あり
+## classification
+・start.py：シンプルな分類モデル  
+・start_cometml_albumentations.py：[comet_ml](https://www.comet.ml)との連携ありの分類モデル
+                                    Augmentを[Albumentations](https://albumentations.ai)にしたもの  
 
-## hypara_tensorboard.py
-ハイパーパラメータ探索用
+・hypara_tensorboard.py：ハイパーパラメータ探索用  
 
-## tensorboard_image_export.py
-tensorboardのログファイルから画像を取り出す
-
-## dataset.py
-データ処理関係
+## grad-cam
+pytorchでGradCAM
