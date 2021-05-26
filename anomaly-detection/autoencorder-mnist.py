@@ -59,19 +59,19 @@ mount_dir = './anomaly-detection'
 encoding_dim = 64
 batch_size = 256
 num_epochs = 300
-learning_rate = 3.0e-4
+learning_rate = 0.01
 num_sumples = 6 #number of test sample
-cuda = True
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model = Autoencoder(encoding_dim)
-mse_loss = nn.MSELoss()
+model.to(device)
+
+criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(),
                              lr=learning_rate,
                              weight_decay=1e-5)
 
 # %%
-if cuda:
-    model.cuda()
-
 img_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.5, ), (0.5, ))  # [0,1] => [-1,1]
@@ -79,41 +79,38 @@ img_transform = transforms.Compose([
 train_dataset = MNIST('./anomaly-detection/data', download=True, train=True, transform=img_transform)
 train_1 = Mnisttox(train_dataset,[1])
 train_loader = DataLoader(train_1, batch_size=batch_size, shuffle=True)
-losses = np.zeros(num_epochs)
 
 # %%
 for epoch in range(num_epochs):
-    i = 0
-    for img,_ in train_loader:
+    running_loss = 0.0
+    for img, _ in train_loader:
         # print("now")
-
-        input_img = img.view(img.size(0), -1)
-
-        if cuda:
-            input_img = Variable(input_img).cuda()
-        else:
-            input_img = Variable(input_img)
-
+        img = img.to(device)
+        
+        optimizer.zero_grad()
+        
+        input_img = Variable(img.view(img.size(0), -1))
         decoded_img = model(input_img)
 
         # 出力画像（再構成画像）と入力画像の間でlossを計算
-        loss = mse_loss(decoded_img, input_img)
-        losses[epoch] = losses[epoch] * (i / (i + 1.)) + loss * (1. / (i + 1.))
-        optimizer.zero_grad()
+        loss = criterion(decoded_img, input_img)
+        running_loss += loss.item()
+        # losses[epoch] = losses[epoch] * (i / (i + 1.)) + loss * (1. / (i + 1.))
         loss.backward()
         optimizer.step()
-        i += 1
+        
+    epoch_loss = running_loss / len(train_loader.dataset)
 
-    plt.figure()
-    pylab.xlim(0, num_epochs)
-    plt.plot(range(0, num_epochs), losses, label='loss')
-    plt.legend()
-    plt.savefig(os.path.join(mount_dir+"/save/", 'loss.pdf'))
+    # plt.figure()
+    # pylab.xlim(0, num_epochs)
+    # plt.plot(range(0, num_epochs), epoch_loss, label='loss')
+    # plt.legend()
+    # plt.savefig(os.path.join(mount_dir+"/save/", 'loss.pdf'))
 
     print('epoch [{}/{}], loss: {:.4f}'.format(
         epoch + 1,
         num_epochs,
-        loss))
+        epoch_loss))
 
 # %%
 test_dataset = MNIST('./anomaly-detection/data', train=False, download=True, transform=img_transform)
@@ -122,12 +119,9 @@ test_loader = DataLoader(test_1_9, batch_size=len(test_dataset), shuffle=True)
 
 # %%
 for img,_ in test_loader:
-    test_img = img.view(img.size(0), -1)
-
-    if cuda:
-        test_img = Variable(test_img).cuda()
-    else:
-        test_img = Variable(test_img)
+    img = img.to(device)
+    
+    test_img = Variable(img.view(img.size(0), -1)).to(device)
 
     decoded_img = model(test_img)
     test_img = test_img.cpu().detach().numpy()
