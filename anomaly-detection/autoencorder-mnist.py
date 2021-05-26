@@ -122,17 +122,17 @@ test_loader = DataLoader(test_1_9, batch_size=len(test_dataset), shuffle=True)
 
 # %%
 for img,_ in test_loader:
-    input_img = img.view(img.size(0), -1)
+    test_img = img.view(img.size(0), -1)
 
     if cuda:
-        input_img = Variable(input_img).cuda()
+        test_img = Variable(test_img).cuda()
     else:
-        input_img = Variable(input_img)
+        test_img = Variable(test_img)
 
-    decoded_img = model(input_img)
-    input_img = input_img.cpu().detach().numpy()
+    decoded_img = model(test_img)
+    test_img = test_img.cpu().detach().numpy()
     decoded_img = decoded_img.cpu().detach().numpy()
-    input_img = input_img/2 + 0.5
+    test_img = test_img/2 + 0.5
     decoded_img = decoded_img/2 + 0.5
     
 # %%
@@ -140,7 +140,7 @@ plt.figure(figsize=(12, 6))
 for i in range(num_sumples):
     # テスト画像を表示
     ax = plt.subplot(3, num_sumples, i + 1)
-    plt.imshow(x[i].reshape(28, 28))
+    plt.imshow(test_img[i].reshape(28, 28))
     plt.gray()
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
