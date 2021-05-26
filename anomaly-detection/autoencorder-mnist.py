@@ -29,17 +29,17 @@ class Mnisttox(Dataset):
         return img,[]
 
 class Autoencoder(nn.Module):
-    def __init__(self,z_dim):
+    def __init__(self,encoding_dim):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.Linear(28 * 28, 256),
             nn.ReLU(True),
             nn.Linear(256, 128),
             nn.ReLU(True),
-            nn.Linear(128, z_dim))
+            nn.Linear(128, encoding_dim))
 
         self.decoder = nn.Sequential(
-            nn.Linear(z_dim, 128),
+            nn.Linear(encoding_dim, 128),
             nn.ReLU(True),
             nn.Linear(128, 256),
             nn.ReLU(True),
@@ -48,21 +48,21 @@ class Autoencoder(nn.Module):
         )
 
     def forward(self, x):
-        z = self.encoder(x)
-        xhat = self.decoder(z)
-        return xhat
+        encoding_img = self.encoder(x)
+        decoded_img = self.decoder(encoding_img)
+        return decoded_img
 
 # %%
 mount_dir = './anomaly-detection'
 
 # 削減後の次元数
-z_dim = 64
+encoding_dim = 64
 batch_size = 256
 num_epochs = 300
 learning_rate = 3.0e-4
-n = 6 #number of test sample
+num_sumples = 6 #number of test sample
 cuda = True
-model = Autoencoder(z_dim)
+model = Autoencoder(encoding_dim)
 mse_loss = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(),
                              lr=learning_rate,
@@ -87,17 +87,17 @@ for epoch in range(num_epochs):
     for img,_ in train_loader:
         # print("now")
 
-        x = img.view(img.size(0), -1)
+        input_img = img.view(img.size(0), -1)
 
         if cuda:
-            x = Variable(x).cuda()
+            input_img = Variable(input_img).cuda()
         else:
-            x = Variable(x)
+            input_img = Variable(input_img)
 
-        xhat = model(x)
+        decoded_img = model(input_img)
 
         # 出力画像（再構成画像）と入力画像の間でlossを計算
-        loss = mse_loss(xhat, x)
+        loss = mse_loss(decoded_img, input_img)
         losses[epoch] = losses[epoch] * (i / (i + 1.)) + loss * (1. / (i + 1.))
         optimizer.zero_grad()
         loss.backward()
@@ -122,44 +122,44 @@ test_loader = DataLoader(test_1_9, batch_size=len(test_dataset), shuffle=True)
 
 # %%
 for img,_ in test_loader:
-    x = img.view(img.size(0), -1)
+    input_img = img.view(img.size(0), -1)
 
     if cuda:
-        x = Variable(x).cuda()
+        input_img = Variable(input_img).cuda()
     else:
-        x = Variable(x)
+        input_img = Variable(input_img)
 
-    xhat = model(x)
-    x = x.cpu().detach().numpy()
-    xhat = xhat.cpu().detach().numpy()
-    x = x/2 + 0.5
-    xhat = xhat/2 + 0.5
+    decoded_img = model(input_img)
+    input_img = input_img.cpu().detach().numpy()
+    decoded_img = decoded_img.cpu().detach().numpy()
+    input_img = input_img/2 + 0.5
+    decoded_img = decoded_img/2 + 0.5
     
 # %%
 plt.figure(figsize=(12, 6))
-for i in range(n):
+for i in range(num_sumples):
     # テスト画像を表示
-    ax = plt.subplot(3, n, i + 1)
+    ax = plt.subplot(3, num_sumples, i + 1)
     plt.imshow(x[i].reshape(28, 28))
     plt.gray()
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
     # 出力画像を表示
-    ax = plt.subplot(3, n, i + 1 + n)
-    plt.imshow(xhat[i].reshape(28, 28))
+    ax = plt.subplot(3, num_sumples, i + 1 + num_sumples)
+    plt.imshow(decoded_img[i].reshape(28, 28))
     plt.gray()
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
 
     # 入出力の差分画像を計算
-    diff_img = np.abs(x[i] - xhat[i])
+    diff_img = np.abs(test_img[i] - decoded_img[i])
 
     # 入出力の差分数値を計算
     diff = np.sum(diff_img)
 
     # 差分画像と差分数値の表示
-    ax = plt.subplot(3, n, i + 1 + n * 2)
+    ax = plt.subplot(3, num_sumples, i + 1 + num_sumples * 2)
     plt.imshow(diff_img.reshape(28, 28),cmap="jet")
     #plt.gray()
     ax.get_xaxis().set_visible(True)
