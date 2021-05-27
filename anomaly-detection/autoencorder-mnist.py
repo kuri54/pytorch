@@ -29,17 +29,17 @@ class Mnisttox(Dataset):
         return img,[]
 
 class Autoencoder(nn.Module):
-    def __init__(self,encoding_dim):
+    def __init__(self):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.Linear(28 * 28, 256),
             nn.ReLU(True),
             nn.Linear(256, 128),
             nn.ReLU(True),
-            nn.Linear(128, encoding_dim))
+            nn.Linear(128, 64))
 
         self.decoder = nn.Sequential(
-            nn.Linear(encoding_dim, 128),
+            nn.Linear(64, 128),
             nn.ReLU(True),
             nn.Linear(128, 256),
             nn.ReLU(True),
@@ -55,15 +55,13 @@ class Autoencoder(nn.Module):
 # %%
 mount_dir = './anomaly-detection'
 
-# 削減後の次元数
-encoding_dim = 64
 batch_size = 256
-num_epochs = 300
-learning_rate = 0.01
+num_epochs = 100
+learning_rate = 0.001
 num_sumples = 6 #number of test sample
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model = Autoencoder(encoding_dim)
+model = Autoencoder()
 model.to(device)
 
 criterion = nn.MSELoss()
@@ -81,6 +79,8 @@ train_1 = Mnisttox(train_dataset,[1])
 train_loader = DataLoader(train_1, batch_size=batch_size, shuffle=True)
 
 # %%
+model.train()
+losses = []
 for epoch in range(num_epochs):
     running_loss = 0.0
     for img, _ in train_loader:
@@ -95,17 +95,12 @@ for epoch in range(num_epochs):
         # 出力画像（再構成画像）と入力画像の間でlossを計算
         loss = criterion(decoded_img, input_img)
         running_loss += loss.item()
-        # losses[epoch] = losses[epoch] * (i / (i + 1.)) + loss * (1. / (i + 1.))
+
         loss.backward()
         optimizer.step()
         
     epoch_loss = running_loss / len(train_loader.dataset)
-
-    # plt.figure()
-    # pylab.xlim(0, num_epochs)
-    # plt.plot(range(0, num_epochs), epoch_loss, label='loss')
-    # plt.legend()
-    # plt.savefig(os.path.join(mount_dir+"/save/", 'loss.pdf'))
+    losses.append(epoch_loss)
 
     print('epoch [{}/{}], loss: {:.4f}'.format(
         epoch + 1,
@@ -113,17 +108,25 @@ for epoch in range(num_epochs):
         epoch_loss))
 
 # %%
+fig, ax = plt.subplots(1,1,figsize=(7,5))
+ax.set_title('Loss')
+ax.plot(losses)
+plt.savefig('./anomaly-detection/save/loss.pdf')
+
+# %%
 test_dataset = MNIST('./anomaly-detection/data', train=False, download=True, transform=img_transform)
 test_1_9 = Mnisttox(test_dataset,[1,9])
 test_loader = DataLoader(test_1_9, batch_size=len(test_dataset), shuffle=True)
 
 # %%
+model.eval()
+loss_dist = []
 for img,_ in test_loader:
     img = img.to(device)
-    
     test_img = Variable(img.view(img.size(0), -1)).to(device)
 
     decoded_img = model(test_img)
+        
     test_img = test_img.cpu().detach().numpy()
     decoded_img = decoded_img.cpu().detach().numpy()
     test_img = test_img/2 + 0.5
