@@ -2,3 +2,7 @@ __pycache__/
 tensorboard_runs/
 save_models/
 password_api/
+*.csv
+.ipynb_checkpoints/
+MNIST
+.ftpconfig
