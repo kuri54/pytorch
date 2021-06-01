@@ -20,7 +20,7 @@ vectors = []
 labels = []
 for img in train_list:
     im = cv2.imread(img, cv2.IMREAD_GRAYSCALE)
-    im = cv2.resize(im, (28, 28))
+    im = cv2.resize(im, (224, 224))
     vectors.append(im)
     
     names = img.split('/')
@@ -31,8 +31,8 @@ for img in train_list:
 experiment.log_embedding(
     vectors,
     labels,
-    # image_data=vectors,
-    # image_size=(28, 28)
+    image_data=vectors,
+    image_size=(224, 224)
     )
 
 experiment.end()
