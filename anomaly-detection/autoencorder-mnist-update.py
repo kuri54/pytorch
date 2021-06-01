@@ -2,6 +2,7 @@
 import os
 import pylab
 import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 import torch
@@ -11,6 +12,7 @@ from torch.utils.data import DataLoader,Dataset
 
 from torchvision import transforms
 from torchvision.datasets import MNIST
+from torchvision.utils import save_image
 
 # %%
 class Mnisttox(Dataset):
@@ -77,6 +79,12 @@ train_dataset = MNIST('./anomaly-detection/data', download=True, train=True, tra
 train_1 = Mnisttox(train_dataset,[1])
 train_loader = DataLoader(train_1, batch_size=batch_size, shuffle=True)
 
+# def to_img(x):
+#     x = 0.5 * (x + 1)  # [-1,1] => [0, 1]
+#     x = x.clamp(0, 1)
+#     x = x.view(x.size(0), 1, 28, 28)
+#     return x
+
 # %%
 model.train()
 losses = []
@@ -88,7 +96,7 @@ for epoch in range(num_epochs):
         
         optimizer.zero_grad()
         
-        input_img = Variable(img.view(img.size(0), -1))
+        input_img = img.view(img.size(0), -1)
         decoded_img = model(input_img)
 
         # 出力画像（再構成画像）と入力画像の間でlossを計算
@@ -101,36 +109,84 @@ for epoch in range(num_epochs):
     epoch_loss = running_loss / len(train_loader.dataset)
     losses.append(epoch_loss)
 
-    print('epoch [{}/{}], loss: {:.4f}'.format(
+    print('epoch [{}/{}], loss: {}'.format(
         epoch + 1,
         num_epochs,
         epoch_loss))
+    
+    # 10エポックごとに再構成された画像（decoded_img）を描画する
+    # if epoch % 10 == 0:
+    #     pic = to_img(decoded_img.cpu().data)
+    #     save_image(pic, mount_dir+'/save/image_{}.png'.format(epoch))
 
 # %%
+# lossをプロット
 fig, ax = plt.subplots(1,1,figsize=(7,5))
 ax.set_title('Loss')
 ax.plot(losses)
-plt.savefig('./anomaly-detection/save/loss.pdf')
+ax.set_xlabel('Epochs')
+ax.set_ylabel('Loss')
+plt.savefig('./anomaly-detection/save/loss.png')
 
 # %%
 test_dataset = MNIST('./anomaly-detection/data', train=False, download=True, transform=img_transform)
 test_1_9 = Mnisttox(test_dataset,[1,9])
-test_loader = DataLoader(test_1_9, batch_size=len(test_dataset), shuffle=True)
+test_loader = DataLoader(test_1_9, batch_size=len(test_dataset))
 
 # %%
 model.eval()
 loss_dist = []
-for img, _ in test_loader:
+for img, _ in next(iter(test_loader)):
     img = img.to(device)
-    test_img = Variable(img.view(img.size(0), -1)).to(device)
+    test_img = img.view(img.size(0), -1).to(device)
 
     decoded_img = model(test_img)
-        
+    
+    loss = criterion(test_img, decoded_img)
+    loss_dist.append(loss.item())
+    
     test_img = test_img.cpu().detach().numpy()
     decoded_img = decoded_img.cpu().detach().numpy()
-    test_img = test_img/2 + 0.5
+    test_img = test_img/2 + 0.5 # [-1,1]にしているので0.5を足して元に戻す
     decoded_img = decoded_img/2 + 0.5
-    
+
+# %%
+# lossを視覚化することでどこに異常が隠れているかの情報を得る
+loss_sc = []
+for i in loss_dist:
+    loss_sc.append((i, i))
+
+lower_threshold = 0.0
+upper_threshold = 0.3
+
+fig, ax = plt.subplots(figsize=(6, 8))
+plt.title('Loss Distribution')
+plt.axis('off')
+
+ax1 = fig.add_subplot(2, 1, 1)
+ax1.scatter(*zip(*loss_sc))
+ax1.axvline(upper_threshold, 0.0, 1, color='r')
+ax1.set_xlabel('Loss')
+ax1.set_ylabel('Loss')
+
+ax2 = fig.add_subplot(2, 1, 2)
+sns.distplot(loss_dist, bins=100, kde=True, color='blue')
+ax2.axvline(upper_threshold, 0.0, 10, color='r')
+ax2.axvline(lower_threshold, 0.0, 10, color='b')
+ax2.set_xlabel('Loss')
+ax2.set_ylabel('Number of sumples')
+
+fig.tight_layout()
+plt.savefig('./anomaly-detection/save/Threshold.png')
+fig.show()
+
+'''プロット図
+赤線を超えた（右にある）データは異常と判断できる（推定閾値）
+青線は下限の閾値
+'''
+
+
+
 # %%
 plt.figure(figsize=(12, 6))
 for i in range(num_sumples):
@@ -164,3 +220,23 @@ for i in range(num_sumples):
 
 plt.savefig(mount_dir+"/save/result.png")
 plt.show()
+
+
+imgs = []
+for img, _ in test_loader:
+    imgs.append(img)
+imgs[0][0][0].shape
+plt.imshow(imgs[0][0][0])
+
+plt.imshow(img_1)
+plt.imshow(img_2)
+
+imgs = []
+for img in next(iter(test_loader)):
+    imgs.append(img)
+imgs[0].shape
+img0 = imgs[0].view(imgs[0].size(0), -1)    
+img0.shape
+img0[0].shape
+
+plt.imshow(img0[0].reshape(28,28))
