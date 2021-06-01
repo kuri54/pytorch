@@ -1,5 +1,9 @@
 # %%
 import os
+<<<<<<< HEAD
+
+=======
+>>>>>>> 17fc0d7df66db1ce3cf23be810f0fcb39c7a66d3
 import pylab
 import numpy as np
 import matplotlib.pyplot as plt
@@ -119,6 +123,10 @@ test_loader = DataLoader(test_1_9, batch_size=len(test_dataset), shuffle=True)
 
 # %%
 model.eval()
+<<<<<<< HEAD
+loss_dist = []
+=======
+>>>>>>> 17fc0d7df66db1ce3cf23be810f0fcb39c7a66d3
 for img,_ in test_loader:
     img = img.to(device)
     test_img = Variable(img.view(img.size(0), -1)).to(device)
