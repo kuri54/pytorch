@@ -1,5 +1,8 @@
 '''
 https://benjoe.medium.com/anomaly-detection-using-pytorch-autoencoder-and-mnist-31c5c2186329
+
+このモデルではうまく学習できていない（Lossが下がりきっていない）ため、可視化がうまくいかない。
+-> 単に層を深くするだけでは学習が収束しない？
 '''
 # %%
 import time

@@ -1,9 +1,5 @@
 # %%
 import os
-<<<<<<< HEAD
-
-=======
->>>>>>> 17fc0d7df66db1ce3cf23be810f0fcb39c7a66d3
 import pylab
 import numpy as np
 import matplotlib.pyplot as plt
@@ -47,7 +43,7 @@ class Autoencoder(nn.Module):
             nn.Linear(128, 256),
             nn.ReLU(True),
             nn.Linear(256, 28 * 28),
-            nn.Tanh()
+            nn.Tanh() # [-1,1]に正規化しているのでTanhを用いる
         )
 
     def forward(self, x):
@@ -123,11 +119,8 @@ test_loader = DataLoader(test_1_9, batch_size=len(test_dataset), shuffle=True)
 
 # %%
 model.eval()
-<<<<<<< HEAD
 loss_dist = []
-=======
->>>>>>> 17fc0d7df66db1ce3cf23be810f0fcb39c7a66d3
-for img,_ in test_loader:
+for img, _ in test_loader:
     img = img.to(device)
     test_img = Variable(img.view(img.size(0), -1)).to(device)
 
