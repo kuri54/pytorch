@@ -6,3 +6,5 @@ password_api/
 .ipynb_checkpoints/
 MNIST
 .ftpconfig
+data
+*/results
