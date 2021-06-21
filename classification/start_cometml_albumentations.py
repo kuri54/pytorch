@@ -1,6 +1,8 @@
 # %%
-%load_ext autoreload
-%autoreload 2
+# %load_ext autoreload
+# %autoreload 2
+
+os.chdir('../')
 
 # %%
 from comet_ml import Experiment, ConfusionMatrix
@@ -43,7 +45,7 @@ experiment = Experiment(project_name=project_name)
 hyper_params = {
     'num_classes': 5,
     'batch_size': 64,
-    'num_epochs': 10,
+    'num_epochs': 500,
     'learning_rate': 0.001
 }
 
@@ -62,7 +64,7 @@ test_list = make_filepath_list(data_dir_path, phase='test')
 # albumentationsでデータ水増しと正規化
 train_transform_albu = A.Compose([
     A.HorizontalFlip(p=0.5),
-    A.RandomResizedCrop(224, 224), 
+    A.RandomResizedCrop(224, 224),
     A.Cutout(p=0.5),
     A.Normalize([0.5, 0.5, 0.5], [0.2, 0.2, 0.2]),
     ToTensorV2()
@@ -98,18 +100,18 @@ def worker_init_fn(worker_id):
 np.random.seed(42)
 
 # dataloaderの作成
-dataloaders = {'train': torch.utils.data.DataLoader(train_dataset, 
+dataloaders = {'train': torch.utils.data.DataLoader(train_dataset,
                                                     batch_size=hyper_params['batch_size'],
-                                                    shuffle=True, 
-                                                    num_workers=2, 
+                                                    shuffle=True,
+                                                    num_workers=2,
                                                     worker_init_fn=worker_init_fn),
-               'valid': torch.utils.data.DataLoader(valid_dataset, 
-                                                    batch_size=hyper_params['batch_size'], 
-                                                    num_workers=2, 
+               'valid': torch.utils.data.DataLoader(valid_dataset,
+                                                    batch_size=hyper_params['batch_size'],
+                                                    num_workers=2,
                                                     worker_init_fn=worker_init_fn),
-               'test': torch.utils.data.DataLoader(test_dataset, 
-                                                   batch_size=hyper_params['batch_size'], 
-                                                   num_workers=2, 
+               'test': torch.utils.data.DataLoader(test_dataset,
+                                                   batch_size=hyper_params['batch_size'],
+                                                   num_workers=2,
                                                    worker_init_fn=worker_init_fn)}
 
 # %%
@@ -166,7 +168,7 @@ criterion = nn.CrossEntropyLoss()
 
 # オプティマイザ
 # モーメンタム付きSGDが割と最強らしい
-optimizer = optim.SGD(model_ft.parameters(), 
+optimizer = optim.SGD(model_ft.parameters(),
                          lr=hyper_params['learning_rate'],
                          momentum=0.9, # モーメンタム係数
                          nesterov=False # ネステロフ加速勾配法
@@ -198,30 +200,32 @@ def test_index_to_example(index):
     return {"sample": str(index), "assetId": data["imageId"]}
 
 valid_confusion_matrix = ConfusionMatrix(labels=class_names,
-                                         index_to_example_function=valid_index_to_example) 
+                                         index_to_example_function=valid_index_to_example)
 test_confusion_matrix = ConfusionMatrix(labels=class_names,
-                                        index_to_example_function=test_index_to_example) 
+                                        index_to_example_function=test_index_to_example)
 
 # %%
-model = train_model_cometml(experiment, 
-                            hyper_params, 
-                            valid_confusion_matrix, 
+model = train_model_cometml(experiment,
+                            hyper_params,
+                            valid_confusion_matrix,
                             model_ft,
-                            dataloaders, 
-                            class_names, 
-                            device, 
-                            criterion, 
-                            optimizer, 
-                            scheduler=cos_lr_scheduler, 
-                            save_model_name=project_name, 
+                            dataloaders,
+                            class_names,
+                            device,
+                            criterion,
+                            optimizer,
+                            scheduler=cos_lr_scheduler,
+                            save_model_name=project_name,
                             num_epochs=hyper_params['num_epochs']
                             )
 
-visualize_model_cometml(experiment, 
-                        test_confusion_matrix, 
-                        model_ft, 
-                        dataloaders, 
-                        class_names, 
+visualize_model_cometml(experiment,
+                        test_confusion_matrix,
+                        model_ft,
+                        dataloaders,
+                        class_names,
                         device)
 
 experiment.end()
+
+# %%
