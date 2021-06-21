@@ -8,3 +8,5 @@ MNIST
 .ftpconfig
 data
 */results
+.vscode
+.env
