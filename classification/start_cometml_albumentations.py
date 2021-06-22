@@ -32,6 +32,7 @@ import torch.utils.data as data
 import torchvision
 from torchvision import datasets, models, transforms
 
+from classification.criterion import LabelSmoothLoss
 from classification.dataset import MyDataset, make_filepath_list
 from classification.evaluator import plot_roc_fig
 from classification.train import train_model_cometml, visualize_model_cometml
@@ -164,7 +165,12 @@ experiment.set_model_graph(model_ft)
 
 # %%
 # 損失関数
-criterion = nn.CrossEntropyLoss()
+# criterion = nn.CrossEntropyLoss()
+
+# Label Smoothing
+criterion = LabelSmoothLoss(num_classes=hyper_params['num_classes'],
+                            alpha=0.05
+                            )
 
 # オプティマイザ
 # モーメンタム付きSGDが割と最強らしい
