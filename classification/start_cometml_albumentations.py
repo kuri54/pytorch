@@ -3,7 +3,6 @@
 # %autoreload 2
 
 os.chdir('../')
-
 # %%
 from comet_ml import Experiment, ConfusionMatrix
 
@@ -11,17 +10,13 @@ from comet_ml import Experiment, ConfusionMatrix
 import os
 import copy
 
-import cv2
 import timm
 import numpy as np
-import pandas as pd
-import seaborn as sns
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
-import matplotlib.pyplot as plt
-from PIL import Image
-from sklearn.metrics import *
 from pprint import pprint
+import albumentations as A
+import matplotlib.pyplot as plt
+from sklearn.metrics import *
+from albumentations.pytorch import ToTensorV2
 
 import torch
 import torch.nn as nn
@@ -32,10 +27,10 @@ import torch.utils.data as data
 import torchvision
 from torchvision import datasets, models, transforms
 
-from classification.criterion import LabelSmoothLoss
-from classification.dataset import MyDataset, make_filepath_list
-from classification.evaluator import plot_roc_fig
-from classification.train import train_model_cometml, visualize_model_cometml
+from utils.evaluator import plot_roc_fig
+from utils.criterion import LabelSmoothLoss
+from utils.dataset import MyDataset, make_filepath_list
+from utils.train import train_loop, valid_loop, evalute_model
 
 # %%
 # loggingを開始 -> API情報を載せた'.comet.config'をhomeディレクトリに作成しているので、APIの入力は必要ない
@@ -211,27 +206,109 @@ test_confusion_matrix = ConfusionMatrix(labels=class_names,
                                         index_to_example_function=test_index_to_example)
 
 # %%
-model = train_model_cometml(experiment,
-                            hyper_params,
-                            valid_confusion_matrix,
-                            model_ft,
-                            dataloaders,
-                            class_names,
-                            device,
-                            criterion,
-                            optimizer,
-                            scheduler=cos_lr_scheduler,
-                            save_model_name=project_name,
-                            num_epochs=hyper_params['num_epochs']
-                            )
+best_model_wts = copy.deepcopy(model_ft.state_dict())
+best_acc = 0.0
+best_loss = 1e+10
+earlystop_counter = 0
 
-visualize_model_cometml(experiment,
-                        test_confusion_matrix,
-                        model_ft,
-                        dataloaders,
-                        class_names,
-                        device)
+task = 'binary'
 
+if len(class_names) == 2:
+    print('Task: Binary Class')
+    task = 'binary'
+else:
+    print('Task: Multi Class')
+    task = 'multi'
+
+for epoch in range(hyper_params['num_epochs']):
+    print('Epoch {}/{}'.format(epoch + 1, hyper_params['num_epochs']))
+    print('-' * 10)
+
+    train_loss, train_acc = train_loop(model_ft,
+                                       dataloaders['train'],
+                                       device,
+                                       criterion,
+                                       optimizer,
+                                       scheduler=cos_lr_scheduler)
+
+    experiment.log_metric('train_loss', train_loss, step=epoch)
+    experiment.log_metric('train_acc', train_acc, step=epoch)
+
+    valid_loss, valid_acc, labels_all, pred_all = valid_loop(model_ft,
+                                                             dataloaders['valid'],
+                                                             device,
+                                                             criterion)
+
+    metrics_dict = classification_report(y_true=labels_all, y_pred=pred_all, output_dict=True, zero_division=0)
+
+    fig = plot_roc_fig(labels_all, pred_all, class_names, task)
+    experiment.log_figure('ROC', fig, step=epoch)
+
+    valid_recall = metrics_dict['macro avg']['recall']
+    valid_precision = metrics_dict['macro avg']['precision']
+    valid_f1 = metrics_dict['macro avg']['f1-score']
+
+    experiment.log_metric('valid_loss', valid_loss, step=epoch)
+    experiment.log_metric('valid_acc', valid_acc, step=epoch)
+
+    valid_confusion_matrix.compute_matrix(labels_all, pred_all)
+    experiment.log_confusion_matrix(matrix=valid_confusion_matrix,
+                                    title='Confusion Matrix, Epoch #{}'.format(epoch + 1),
+                                    file_name='confusion-matrix-{}.json'.format(epoch + 1)
+                                    )
+
+    print('Train Loss: {:.4f} Acc: {:.4f}'.format(train_loss, train_acc))
+    print('Valid Loss: {:.4f} Acc: {:.4f} Recall: {:.4f} Precision: {:.4f} F1-score: {:.4f}'.format(valid_loss, valid_acc, valid_recall, valid_precision, valid_f1))
+    print()
+
+    if valid_acc > best_acc:
+        best_acc = valid_acc
+        best_model_wts = copy.deepcopy(model_ft.state_dict())
+        print ('Save Best Acc Weight!')
+        print()
+
+    # early stop
+    if valid_loss < best_loss:
+        earlystop_counter = 0
+        best_loss = valid_loss
+
+    else:
+        earlystop_counter += 1
+
+    if earlystop_counter > 10:
+        print()
+        print('Early Stop!!!!')
+        break
+
+save_model_dir = './classification/save_models/{}'.format(project_name)
+os.makedirs(save_model_dir, exist_ok=True)
+
+model_ft.load_state_dict(best_model_wts)
+torch.save(model_ft.state_dict(),
+            os.path.join(save_model_dir, project_name+'_bs{}_lr{}_best.pkl'.format(hyper_params['batch_size'], hyper_params['learning_rate'])))
+experiment.log_model('best_model',
+                        os.path.join(save_model_dir, project_name+'_bs{}_lr{}_best.pkl'.format(hyper_params['batch_size'], hyper_params['learning_rate'])))
+
+experiment.log_metric('best_val_acc', best_acc)
+
+print('-' * 10)
+print('Best val Acc: {:4f}'.format(best_acc))
+print('Fin')
+
+# %%
+correct, total, labels_all, pred_all = evalute_model(model_ft,
+                                                     dataloaders['test'],
+                                                     device)
+
+print('Test Accuracy: %2d%% (%2d/%2d)' % (100. * correct / total, correct, total))
+experiment.log_metric('test_acc', 100. * correct / total)
+
+test_confusion_matrix.compute_matrix(labels_all, pred_all)
+experiment.log_confusion_matrix(matrix=test_confusion_matrix,
+                                title='Test Confusion Matrix',
+                                file_name='test-confusion-matrix.json'
+                                )
+# %%
 experiment.end()
 
 # %%

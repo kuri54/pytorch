@@ -1,7 +1,5 @@
 # %%
 import torch
-import torch.nn as nn
-
 
 class LabelSmoothLoss(torch.nn.Module):
     '''Label Smoothing
