@@ -9,6 +9,7 @@ from comet_ml import Experiment, ConfusionMatrix
 # %%
 import os
 import copy
+import random
 
 import timm
 import numpy as np
@@ -33,6 +34,11 @@ from utils.dataset import MyDataset, make_filepath_list
 from utils.train import train_loop, valid_loop, evalute_model
 
 # %%
+# timmのpretrained modelを表示
+# model_names = timm.list_models(pretrained=True)
+# pprint(model_names)
+
+# %%
 # loggingを開始 -> API情報を載せた'.comet.config'をhomeディレクトリに作成しているので、APIの入力は必要ない
 project_name = 'pytorch_test_albumentations'
 experiment = Experiment(project_name=project_name)
@@ -42,11 +48,27 @@ hyper_params = {
     'num_classes': 5,
     'batch_size': 64,
     'num_epochs': 500,
-    'learning_rate': 0.001
+    'learning_rate': 0.001,
+    'model_name': 'efficientnet_b0',
+    'weight_decay': 5e-5,
+    'seed': 64,
+    'img_size': 224
 }
 
 experiment.log_parameters(hyper_params)
 experiment.set_name('batch_size: {} learning_rate: {}'.format(hyper_params['batch_size'], hyper_params['learning_rate']))
+
+# シードの設定
+def seed_everything(seed:int==64):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+
+seed_everything(hyper_params['seed'])
 
 # %%
 # 画像データへのファイルパスを格納したリストを取得する
@@ -59,6 +81,7 @@ test_list = make_filepath_list(data_dir_path, phase='test')
 # %%
 # albumentationsでデータ水増しと正規化
 train_transform_albu = A.Compose([
+    A.Resize(hyper_params['img_size'], hyper_params['img_size']),
     A.HorizontalFlip(p=0.5),
     A.RandomResizedCrop(224, 224),
     A.Cutout(p=0.5),
@@ -68,14 +91,14 @@ train_transform_albu = A.Compose([
 
 valid_transform_albu = A.Compose([
     A.Resize(256, 256),
-    A.CenterCrop(224, 224),
+    A.CenterCrop(hyper_params['img_size'], hyper_params['img_size']),
     A.Normalize([0.5, 0.5, 0.5], [0.2, 0.2, 0.2]),
     ToTensorV2()
     ])
 
 test_transform_albu = A.Compose([
     A.Resize(256, 256),
-    A.CenterCrop(224, 224),
+    A.CenterCrop(hyper_params['img_size'], hyper_params['img_size']),
     A.Normalize([0.5, 0.5, 0.5], [0.2, 0.2, 0.2]),
     ToTensorV2()
     ])
@@ -89,26 +112,17 @@ valid_dataset = MyDataset(valid_list, class_names, transform=valid_transform_alb
 test_dataset = MyDataset(test_list, class_names, transform=test_transform_albu)
 
 # %%
-# シード値の固定
-def worker_init_fn(worker_id):
-    np.random.seed(np.random.get_state()[1][0] + worker_id)
-
-np.random.seed(42)
-
 # dataloaderの作成
 dataloaders = {'train': torch.utils.data.DataLoader(train_dataset,
                                                     batch_size=hyper_params['batch_size'],
                                                     shuffle=True,
-                                                    num_workers=2,
-                                                    worker_init_fn=worker_init_fn),
+                                                    num_workers=2),
                'valid': torch.utils.data.DataLoader(valid_dataset,
                                                     batch_size=hyper_params['batch_size'],
-                                                    num_workers=2,
-                                                    worker_init_fn=worker_init_fn),
+                                                    num_workers=2),
                'test': torch.utils.data.DataLoader(test_dataset,
                                                    batch_size=hyper_params['batch_size'],
-                                                   num_workers=2,
-                                                   worker_init_fn=worker_init_fn)}
+                                                   num_workers=2)}
 
 # %%
 # GPU使用設定
@@ -139,20 +153,13 @@ imshow(out
 
 # %%
 # モデルの定義 -> GPUへ送る
-# timmのpretrained modelを表示
-# model_names = timm.list_models(pretrained=True)
-# pprint(model_names)
-
-# EfficientNet_B0
-model_ft = timm.create_model('efficientnet_b0', pretrained=True)
+model_ft = timm.create_model(hyper_params['model_name'], pretrained=True,
+                             num_classes=hyper_params['num_classes']
+                             )
 
 # PreAct-resnet18
 # model_ft = torch.hub.load('ecs-vlc/FMix:master', 'preact_resnet18_cifar10_baseline', pretrained=True)
 model_ft
-
-# 最終のFC層を再定義
-num_ftrs = model_ft.classifier.in_features
-model_ft.classifier = nn.Linear(num_ftrs, hyper_params['num_classes'])
 
 model_ft = model_ft.to(device)
 
@@ -174,6 +181,10 @@ optimizer = optim.SGD(model_ft.parameters(),
                          momentum=0.9, # モーメンタム係数
                          nesterov=False # ネステロフ加速勾配法
                          )
+
+# optimizer = optim.AdamW(model_ft.parameters(),
+#                         lr=hyper_params['learning_rate'],
+#                         weight_decay=hyper_params['weight_decay'])
 
 # 学習スケジューラ
 # とりあえずCosineAnnealingLRを使っとけ
